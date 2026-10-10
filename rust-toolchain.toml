@@ -1,0 +1,6 @@
+[toolchain]
+# Pin the GNU toolchain: MSVC link.exe is not installed on this machine,
+# and mixing toolchains confuses rust-analyzer's proc-macro server
+# (wasm-bindgen "proc-macro map is missing" internal error).
+channel = "stable-x86_64-pc-windows-gnu"
+targets = ["wasm32-unknown-unknown"]

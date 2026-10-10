@@ -1,0 +1,40 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Physics of Light: an interactive double-slit visualization. A Rust/WASM backend holds the un-collapsed quantum wave field (pending superposition); a WebGPU/WGSL frontend renders the observation line where it commits into classical particle hits. Drag obs_line_x to sweep the pending-to-committed transition."
+    />
+    <title>Physics of Light — Frontend/Backend</title>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="ui" style="position: fixed; top: 1rem; left: 1rem; color: #fff; font-family: monospace; background: rgba(0,0,0,0.55); padding: 0.6rem 0.8rem; border-radius: 8px;">
+      <div>Backend (Rust/Wasm): <span id="status">loading...</span></div>
+      <div>2 + 2 = <span id="result">-</span></div>
+      <div id="gpuInfo">webgpu: ...</div>
+      <div id="commitInfo">commits: -</div>
+      <label style="display:block; margin-top:0.4rem;">obs_line_x <input id="obsX" type="range" min="0" max="1.2" step="0.01" value="0.5" /></label>
+      <label style="display:block;">obs_width <input id="obsW" type="range" min="0" max="0.5" step="0.01" value="0.1" /></label>
+      <label style="display:block;">barrier_x <input id="barrierX" type="range" min="0.05" max="0.9" step="0.01" value="0.3" /></label>
+      <label style="display:block;">slit_sep <input id="slitSep" type="range" min="0.05" max="0.5" step="0.01" value="0.2" /></label>
+      <label style="display:block;">wave_k <input id="waveK" type="range" min="20" max="120" step="1" value="60" /></label>
+      <label style="display:block;"><input id="sweep" type="checkbox" /> sweep obs (reversible)</label>
+      <label style="display:block;">speed <input id="sweepSpeed" type="range" min="0.1" max="2" step="0.1" value="0.6" /></label>
+      <label style="display:block;"><input id="accum" type="checkbox" checked /> accumulate hits (build fringes)</label>
+      <label style="display:block;"><input id="hist" type="checkbox" checked /> fringe histogram</label>
+      <div id="timeInfo">t: 0.00</div>
+      <button id="resample" type="button" style="margin-top:0.4rem;">resample commits</button>
+    </div>
+    <div id="legend" style="position: fixed; bottom: 1rem; left: 1rem; color: #ddd; font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.55); padding: 0.6rem 0.8rem; border-radius: 8px; max-width: 340px;">
+      <div>左彩色波紋 = 待定量子場（顏色=相位，亮度=出現機率）</div>
+      <div>中間暗牆 + 兩缺口 = 雙縫屏障（牆右可見扇形干涉紋）</div>
+      <div>右黑區 = 已判斷區；白點 = 粒子命中事件</div>
+      <div>右緣青棒 = 打點累積出的干涉條紋直方圖</div>
+      <div>拖 obs_line_x：睇波場→黑區+白點的轉換前沿</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
