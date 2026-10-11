@@ -67,3 +67,5 @@ I9 每幀零 heap 分配（P1 後）；scratch 全預alloc。
 I10 每幀 CPU→GPU 傳輸 ≤ 場 buffer×1；P4 後 ≤ obs 列。
 I11 wasm 記憶體 ≤ 8MB；bundle gzip ≤ 80KB；buffer 數 ≤ 16（requiredLimits 審查清單）。
 I12 任何設備組合（無 GPU/弱 GPU/強 GPU）×（2D/3D）都必须可跑於某階梯級；governor 保證。
+I13（v4 渲染反轉）：**baseline 渲染器 = Rust CPU 光柵化（全瀏覽器universal，含 Firefox/Safari）**；
+WebGPU 降為增強層（3D/raymarch/dims/proj/splats GPU 路）。任何環境禁止黑屏：無增強層自動落 baseline。

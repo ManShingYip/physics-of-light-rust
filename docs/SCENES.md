@@ -57,8 +57,9 @@ Scene {
 - 測試：反演回合 ε、swap 不變性（等權交換 net 不變）、JSON round-trip、governor 降階觸發。
 
 ## 8. 資源階梯（接 PLAN §6.6）
-弱機路徑：無 WebGPU → P3 Rust 光柵化 2D；有 WebGPU 弱 GPU → R2/R1＋32³；
-強機 → R0＋48-64³。所有組合都必须可跑＝验收條件。
+弱機路徑（v4 反轉後）：**無 WebGPU（Firefox/Safari/舊機）= 預設 baseline**：Rust CPU 光柵化 2D 全功能
+（場/commits/直方圖/splats 2D 繪製）；有 WebGPU = 增強層：3D/raymarch/slice/點雲/dims/proj。
+強機 → R0＋48-64³。所有組合都必须出畫面＝I13 验收條件（h1.png 為 baseline 證據）。
 
 ## 9. 擴充規則
 新場景 = 新 preset 檔（參數＋判別行），唔改求解器＝純資料；
