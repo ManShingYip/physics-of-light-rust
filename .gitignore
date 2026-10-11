@@ -17,6 +17,8 @@ src-rs/target/
 src-rs/vendor/
 pkg/
 rustup-init.exe
+src-rs/dump.raw
+src-rs/dump.png
 
 # Editor directories and files
 .vscode/*
