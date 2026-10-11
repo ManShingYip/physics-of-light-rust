@@ -50,6 +50,7 @@ struct VsOut {
 @group(0) @binding(6) var<storage, read> trails: array<TrailEvent>;
 @group(0) @binding(7) var<storage, read> force_grid: array<f32>;
 @group(0) @binding(8) var<storage, read> dims_buf: array<f32>;
+@group(0) @binding(9) var<storage, read> proj_buf: array<f32>;
 
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> VsOut {
@@ -69,6 +70,7 @@ fn hue_of(i: u32) -> vec3<f32> {
         case 0u: { return vec3<f32>(0.1, 0.9, 0.9); }
         case 1u: { return vec3<f32>(1.0, 0.6, 0.1); }
         case 2u: { return vec3<f32>(0.9, 0.2, 0.8); }
+        case 4u: { return vec3<f32>(1.0, 0.95, 0.7); }
         default: { return vec3<f32>(0.6, 0.6, 0.65); }
     }
 }
@@ -108,6 +110,34 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     let dims_on = (params.flags & 1u) != 0u;
     let duel_on = (params.flags & 2u) != 0u;
     let arrows_on = (params.flags & 4u) != 0u;
+    let proj_on = (params.flags & 8u) != 0u;
+    let pol_on = (params.flags & 16u) != 0u;
+
+    if (proj_on) {
+        let px = uv.x * 4.0;
+        let panel = u32(floor(px));
+        let lx = fract(px);
+        let fi = clamp(u32(lx * 96.0), 0u, 95u);
+        let fj = clamp(u32(uv.y * 96.0), 0u, 95u);
+        let idx = fj * 96u + fi;
+        var col = vec3<f32>(0.0);
+        if (panel == 0u) {
+            let psi = sample_field(uv);
+            col = phase_to_rgb(atan2(psi.y, psi.x), psi.x * psi.x + psi.y * psi.y);
+        } else if (panel == 1u) {
+            let v = proj_buf[idx];
+            col = vec3<f32>(0.1, 0.7, 0.9) * pow(v, 0.35);
+        } else if (panel == 2u) {
+            let v = proj_buf[9216u + idx];
+            col = select(vec3<f32>(0.2, 0.4, 1.0) * -v, vec3<f32>(1.0, 0.5, 0.1) * v, v > 0.0);
+        } else {
+            let v = proj_buf[18432u + idx];
+            col = vec3<f32>(0.9, 0.9, 0.8) * pow(v, 0.5);
+        }
+        let sep = fract(px) < 0.008;
+        col = col * select(1.0, 0.0, sep);
+        return vec4<f32>(col, 1.0);
+    }
 
     if (dims_on) {
         let px = uv.x * 4.0;
@@ -140,6 +170,17 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     ghost_color = ghost_color * (1.0 - m * 0.95);
     let nn = n_grid[mi];
     ghost_color = ghost_color * (1.0 + (nn - 1.0) * 0.6) + vec3<f32>(0.01, 0.015, 0.03) * (nn - 1.0);
+
+    if (pol_on) {
+        let in1 = uv.x > 0.42 && uv.x < 0.46;
+        let in2 = uv.x > 0.54 && uv.x < 0.58;
+        if (in1 || in2) {
+            let ang = select(params.pol_a, params.pol_b, in2);
+            let line = fract((uv.x * cos(ang) + uv.y * sin(ang)) * 60.0);
+            let gr = select(0.35, 0.9, line < 0.5);
+            ghost_color = ghost_color * 0.4 + vec3<f32>(gr, gr, gr) * 0.25;
+        }
+    }
 
     if (arrows_on) {
         let lc = fract(uv * 48.0) - 0.5;

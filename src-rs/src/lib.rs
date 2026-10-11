@@ -63,6 +63,9 @@ pub struct WaveEngine {
     lensing: bool,
     dims: DimFields,
     last_obs: f32,
+    rays: Vec<force::Particle>,
+    rays_on: bool,
+    projs: Vec<f32>,
 }
 
 struct DimFields {
@@ -234,6 +237,9 @@ impl WaveEngine {
             lensing: false,
             dims: DimFields::new(),
             last_obs: 0.5,
+            rays: Vec::new(),
+            rays_on: false,
+            projs: vec![0.0; 96 * 96 * 3],
         };
         e.solver.pre_re = e.real.clone();
         e.solver.pre_im = e.imag.clone();
@@ -275,6 +281,7 @@ impl WaveEngine {
         }
         self.dims.t += 1.0;
         self.step_force(dt);
+        self.step_rays(dt);
     }
 
     pub fn step_force(&mut self, dt: f32) {
@@ -300,8 +307,10 @@ impl WaveEngine {
                     let sp = (p.vx * p.vx + p.vy * p.vy).sqrt().max(0.004);
                     let tx = g[0] / gl * sp;
                     let ty = g[1] / gl * sp;
-                    p.vx = p.vx * 0.8 + tx * 0.2;
-                    p.vy = p.vy * 0.8 + ty * 0.2;
+                    let others = reg.on[1] || reg.on[2] || reg.on[3];
+                    let mixw = if others { 0.2 } else { 1.0 };
+                    p.vx = p.vx * (1.0 - mixw) + tx * mixw;
+                    p.vy = p.vy * (1.0 - mixw) + ty * mixw;
                 }
             }
             force::integrate(p, f, dt);
@@ -473,6 +482,155 @@ impl WaveEngine {
 
     pub fn set_lensing(&mut self, on: bool) {
         self.lensing = on;
+    }
+
+    pub fn set_rays(&mut self, on: bool) {
+        self.rays_on = on;
+        if on && self.rays.is_empty() {
+            for i in 0..180 {
+                let y = (i as f32 + 0.5) / 180.0;
+                self.rays.push(force::Particle { x: 0.01, y, vx: 0.006, vy: 0.0, alive: true, hue: 4 });
+            }
+        }
+        if !on {
+            self.rays.clear();
+        }
+    }
+
+    /// Geometric rays bent by grad(n) (eikonal toy) -> caustics (S-SOLVER-RAY).
+    pub fn step_rays(&mut self, dt: f32) {
+        if !self.rays_on {
+            return;
+        }
+        let n = self.scene.n.clone();
+        for p in self.rays.iter_mut() {
+            if !p.alive {
+                continue;
+            }
+            let gx = ((p.x * 48.0) as usize).min(47);
+            let gy = ((p.y * 48.0) as usize).min(47);
+            let xm = gx.saturating_sub(1);
+            let xp = (gx + 1).min(47);
+            let ym = gy.saturating_sub(1);
+            let yp = (gy + 1).min(47);
+            let dnx = (n[gy * 48 + xp] - n[gy * 48 + xm]) * 0.5;
+            let dny = (n[yp * 48 + gx] - n[ym * 48 + gx]) * 0.5;
+            p.vx += dnx * 0.06 * dt;
+            p.vy += dny * 0.06 * dt;
+            let sp = (p.vx * p.vx + p.vy * p.vy).sqrt();
+            if sp > 0.012 {
+                p.vx *= 0.012 / sp;
+                p.vy *= 0.012 / sp;
+            }
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            if p.x > 1.0 || p.x < 0.0 || p.y < 0.0 || p.y > 1.0 {
+                p.alive = false;
+            }
+            if self.tick % 2 == 0 && p.alive {
+                self.trails.push(force::Trail { x: p.x, y: p.y, hue: 4, age: 0.0 });
+            }
+        }
+        self.rays.retain(|p| p.alive);
+        if self.rays_on && self.rays.len() < 40 && self.tick % 60 == 0 {
+            for i in 0..60 {
+                let y = ((self.tick / 60) as f32 * 0.1 + i as f32 / 60.0) % 1.0;
+                self.rays.push(force::Particle { x: 0.01, y, vx: 0.006, vy: 0.0, alive: true, hue: 4 });
+            }
+        }
+    }
+
+    /// On-demand projections (S-PROJ-*): [0]=|FFT|2, [1]=Wigner slice, [2]=path/ray density.
+    pub fn compute_projs(&mut self) {
+        let w = self.width as usize;
+        let h = self.height as usize;
+        let n = w * h;
+        let mut kproj = vec![0.0f32; n];
+        let step = 4usize;
+        for ky in 0..h {
+            for kx in 0..w {
+                let mut sr = 0.0f32;
+                let mut si = 0.0f32;
+                let mut y = 0;
+                while y < h {
+                    let mut x = 0;
+                    while x < w {
+                        let ph = -6.2831853 * ((x * kx) as f32 / w as f32 + (y * ky) as f32 / h as f32);
+                        sr += self.real[y * w + x] * ph.cos() - self.imag[y * w + x] * ph.sin();
+                        si += self.real[y * w + x] * ph.sin() + self.imag[y * w + x] * ph.cos();
+                        x += step;
+                    }
+                    y += step;
+                }
+                kproj[ky * w + kx] = (sr * sr + si * si) / (step * step) as f32;
+            }
+        }
+        let mut kmax = 1e-9f32;
+        for v in kproj.iter() {
+            if *v > kmax {
+                kmax = *v;
+            }
+        }
+        for v in kproj.iter_mut() {
+            *v /= kmax;
+        }
+        let ix = (self.last_obs * w as f32) as usize;
+        let mut wign = vec![0.0f32; n];
+        for y in 0..h {
+            for p in 0..w {
+                let mut acc = 0.0f32;
+                let mut s = 0;
+                while s < 24 {
+                    let yp = y + s;
+                    let ym = y as isize - s as isize;
+                    if yp < h && ym >= 0 {
+                        let a = self.real[yp * w + ix];
+                        let b = self.real[ym as usize * w + ix];
+                        acc += a * b * (4.0 * 3.14159 * p as f32 * s as f32 / w as f32).cos();
+                    }
+                    s += 1;
+                }
+                wign[y * w + p] = acc;
+            }
+        }
+        let mut wmax = 1e-9f32;
+        for v in wign.iter() {
+            if v.abs() > wmax {
+                wmax = v.abs();
+            }
+        }
+        for v in wign.iter_mut() {
+            *v /= wmax;
+        }
+        let mut path = vec![0.0f32; n];
+        for t in self.trails.iter() {
+            let px = (t.x * w as f32) as usize;
+            let py = (t.y * h as f32) as usize;
+            if px < w && py < h {
+                path[py * w + px] += 1.0;
+            }
+        }
+        let mut pmax = 1e-9f32;
+        for v in path.iter() {
+            if *v > pmax {
+                pmax = *v;
+            }
+        }
+        for v in path.iter_mut() {
+            *v /= pmax;
+        }
+        self.projs.clear();
+        self.projs.extend_from_slice(&kproj);
+        self.projs.extend_from_slice(&wign);
+        self.projs.extend_from_slice(&path);
+    }
+
+    pub fn projs_ptr(&self) -> *const f32 {
+        self.projs.as_ptr()
+    }
+
+    pub fn projs_len(&self) -> u32 {
+        self.projs.len() as u32
     }
 
     pub fn dims_ptr(&self) -> *const f32 {

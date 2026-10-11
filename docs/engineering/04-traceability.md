@@ -51,4 +51,6 @@ S-FORCE-GUID, S-FORCE-EM, S-FORCE-BOUND, S-DOMINANCE, S-SIGNATURE, S-LENSING,
 S-DIM, S-EXPLAIN, S-GRID, S-UNITY。
 備註：S-COUPLING=weights only（K 交叉項延後）；S-FORCE-GUID 實現但 unity 敗（E3）；
 S-LENSING 實現但彎折弱（E4）。
-仍 pending：S-SOLVER-RAY, S-POL, S-PROJ-K/W/PATH, S-GLUE（開放項，見 EXPERIMENTS/TESTS）。
+仍 pending：S-GLUE（膠合 mismatch 未實施）。
+2026-10-11 二批轉 ✓：S-SOLVER-RAY（焦散淡=E7 polish）、S-PROJ-K/W/PATH（on-demand 按鈕）、
+S-POL（toy：偏振帶＋Malus 讀出，非場耦合）。

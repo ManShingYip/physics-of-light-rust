@@ -36,8 +36,21 @@ pub fn preset(id: u32, barrier: f32, sep: f32, _k: f32) -> Scene {
                     let u = (ix as f32 + 0.5) / GN as f32;
                     let v = (iy as f32 + 0.5) / GN as f32;
                     let du = u - 0.45;
-                    if du >= 0.0 && u <= 0.65 && v >= 0.35 && v <= 0.35 + du * 1.5 {
-                        s.n[iy * GN + ix] = 2.2;
+                    if du >= 0.0 && u <= 0.65 && v >= 0.35 && v <= 0.35 + du * 3.0 {
+                        s.n[iy * GN + ix] = 2.6;
+                    }
+                }
+            }
+        }
+        11 => {
+            for iy in 0..GN {
+                for ix in 0..GN {
+                    let u = (ix as f32 + 0.5) / GN as f32;
+                    let v = (iy as f32 + 0.5) / GN as f32;
+                    let du = u - 0.5;
+                    let dv = v - 0.5;
+                    if du * du + dv * dv < 0.0324 {
+                        s.n[iy * GN + ix] = 1.6;
                     }
                 }
             }

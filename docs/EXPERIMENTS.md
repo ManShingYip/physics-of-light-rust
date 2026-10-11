@@ -19,3 +19,12 @@
 
 ## E6 — 2026-10-11 密封牆隧穿
 環境：全封牆＋300 步｜观察：牆後 E>1e-6（吸收率 0.55/step 唔完美）｜結論：吸收牆=近似黑體，有數值隧穿；selftest 真空改以 t=0 未演化場定義｜紀錄保留
+
+## E7 — 2026-10-11 透鏡焦散（scene11）
+環境：n=1.6 圓盤＋180 幾何 ray｜观察：介質壓縮格可見；ray 彎折包絡（焦散）偏淡｜結論：PASS（顯示）/POLISH（焦散對比）｜截圖：fix2.png
+
+## E8 — 2026-10-11 WebGPU storage limit 事件
+環境：binding 數達 9｜观察：fragment stage 預設 maxStorageBuffersPerShaderStage=8 → pipeline invalid → 全黑｜結論：requestDevice 須 requiredLimits=16；工程教訓：**buffer 數入契約審查清單**｜已修
+
+## E9 — 2026-10-11 Bohm 全速度 steering 再試（E3 跟進）
+公式：guidance 全速度覆蓋（無其他力時 mixw=1）｜签名：unity scene5 guidance 仍 fail｜結論：toy Bohm 缺量子勢／相位渦旋處理，**維持開放**｜截圖：unity5.png

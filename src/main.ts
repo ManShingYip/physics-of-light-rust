@@ -95,6 +95,11 @@ async function main(): Promise<void> {
     dims: getEl<HTMLInputElement>('dims'),
     duel: getEl<HTMLInputElement>('duel'),
     docent: getEl<HTMLInputElement>('docent'),
+    proj: getEl<HTMLInputElement>('proj'),
+    pol: getEl<HTMLInputElement>('pol'),
+    rays: getEl<HTMLInputElement>('rays'),
+    polA: getEl<HTMLInputElement>('polA'),
+    polB: getEl<HTMLInputElement>('polB'),
     scene: getEl<HTMLSelectElement>('sceneSel'),
     gpuInfo: getEl('gpuInfo'),
     commitInfo: getEl('commitInfo'),
@@ -120,12 +125,14 @@ async function main(): Promise<void> {
     el.gpuInfo.textContent = 'webgpu: unavailable (backend still works)'
     return
   }
-  const adapter = (await gpu.requestAdapter()) as null | { requestDevice(): Promise<unknown> }
+  const adapter = (await gpu.requestAdapter()) as null | { requestDevice(d?: unknown): Promise<unknown> }
   if (adapter === null) {
     el.gpuInfo.textContent = 'webgpu: no adapter'
     return
   }
-  const device = (await adapter.requestDevice()) as Device
+  const device = (await adapter.requestDevice({
+    requiredLimits: { maxStorageBuffersPerShaderStage: 16 },
+  })) as Device
   const context = el.canvas.getContext('webgpu') as unknown as {
     configure(c: unknown): void
     getCurrentTexture(): { createView(): unknown }
@@ -155,6 +162,7 @@ async function main(): Promise<void> {
   const trailBuf = mkBuf(1024 * 16, BUFFER_STORAGE | BUFFER_COPY_DST)
   const forceBuf = mkBuf(48 * 48 * 10 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
   const dimsBuf = mkBuf(77568 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
+  const projBuf = mkBuf(96 * 96 * 3 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
 
   const module = device.createShaderModule({ code: wgslSrc }) as unknown as {
     getCompilationInfo(): Promise<{ messages: { type: string; message: string; lineNum: number }[] }>
@@ -183,11 +191,13 @@ async function main(): Promise<void> {
       { binding: 6, resource: { buffer: trailBuf } },
       { binding: 7, resource: { buffer: forceBuf } },
       { binding: 8, resource: { buffer: dimsBuf } },
+      { binding: 9, resource: { buffer: projBuf } },
     ],
   }) as unknown
 
   const flags = (): number =>
-    (el.dims.checked ? 1 : 0) | (el.duel.checked ? 2 : 0) | (el.arrows.checked ? 4 : 0)
+    (el.dims.checked ? 1 : 0) | (el.duel.checked ? 2 : 0) | (el.arrows.checked ? 4 : 0) |
+    (el.proj.checked ? 8 : 0) | (el.pol.checked ? 16 : 0)
 
   const writeUniform = (oX: number): void => {
     const ub = new ArrayBuffer(UNIFORM_BYTES)
@@ -205,8 +215,8 @@ async function main(): Promise<void> {
     dv.setFloat32(40, 0.6, true)
     dv.setFloat32(44, el.hist.checked ? 1 : 0, true)
     dv.setUint32(48, flags(), true)
-    dv.setFloat32(52, 0, true)
-    dv.setFloat32(56, 0, true)
+    dv.setFloat32(52, num(el.polA.value), true)
+    dv.setFloat32(56, num(el.polB.value), true)
     device.queue.writeBuffer(uniformBuf, 0, new Uint8Array(ub))
   }
 
@@ -261,6 +271,13 @@ async function main(): Promise<void> {
     }
   }
 
+  const uploadProjs = (): void => {
+    const p = readF32(engine.projs_ptr() as unknown as number, Number(engine.projs_len()))
+    if (p.length === 96 * 96 * 3) {
+      device.queue.writeBuffer(projBuf, 0, p)
+    }
+  }
+
   const syncForces = (): void => {
     for (let i = 0; i < 4; i = i + 1) {
       engine.set_force_on(i, fOn[i].checked)
@@ -295,6 +312,14 @@ async function main(): Promise<void> {
       t = DOCENT.dims
     } else if (el.duel.checked) {
       t = DOCENT.duel
+    } else if (el.proj.checked) {
+      t = '投影四面板：x-空間／k-空間(|FFT|²)／相空間(Wigner, 藍=負準機率)／路徑密度。觀點維，非空間維。'
+    }
+    if (el.pol.checked) {
+      const a = num(el.polA.value)
+      const b = num(el.polB.value)
+      const T = Math.cos(a) ** 2 * Math.cos(b - a) ** 2
+      t += ' Malus: T=cos²(a)cos²(b−a)=' + T.toFixed(3)
     }
     el.docentSide.textContent = t
   }
@@ -359,6 +384,17 @@ async function main(): Promise<void> {
   getEl('resample').addEventListener('click', resample)
   getEl('unityBtn').addEventListener('click', runUnity)
   getEl('exportBtn').addEventListener('click', exportSig)
+  getEl('projBtn').addEventListener('click', () => {
+    engine.compute_projs()
+    uploadProjs()
+  })
+  el.rays.addEventListener('change', () => {
+    engine.set_rays(el.rays.checked)
+  })
+  el.proj.addEventListener('change', updateDocent)
+  el.pol.addEventListener('change', updateDocent)
+  el.polA.addEventListener('input', updateDocent)
+  el.polB.addEventListener('input', updateDocent)
   getEl('applyExpr').addEventListener('click', () => {
     const ok = engine.set_custom_expr(el.customExpr.value)
     getEl('exprStatus').textContent = ok ? 'expr ok' : 'expr rejected'
@@ -521,3 +557,4 @@ main().catch((e: unknown) => {
   console.error(e)
   document.getElementById('status')!.textContent = 'error'
 })
+
