@@ -5,10 +5,8 @@ import wgslSrc from './render/wave_blend.wgsl?raw'
 const MAX_COMMITS = 256
 const COMMIT_FLOATS = MAX_COMMITS * 4
 const COMMIT_BYTES = COMMIT_FLOATS * 4
-const UNIFORM_BYTES = 48
+const UNIFORM_BYTES = 80
 const DOT_RADIUS = 0.012
-// GPUBufferUsage bits (WebGPU headers may be absent, so spell them out):
-// COPY_SRC = 0x04, COPY_DST = 0x08, UNIFORM = 0x40, STORAGE = 0x80.
 const BUFFER_COPY_DST = 0x08
 const BUFFER_UNIFORM = 0x40
 const BUFFER_STORAGE = 0x80
@@ -43,6 +41,14 @@ function getEl<T extends HTMLElement>(id: string): T {
   return el as T
 }
 
+const DOCENT: Record<string, string> = {
+  s5: '雙縫：波穿兩縫干涉；白點=單次 commit 事件；右緣直方圖=干涉條紋。微粒說在此預測兩坨，畫面否證佢。',
+  s1: '影：圓盤擋波；邊緣衍射彎入影區（波動說預測、微粒說解釋唔到）。obs 線打點中間缺口=影嘅簽名。',
+  s3: '棱鏡：n=1.45 介質壓縮波長（棋格=相位混疊）、波前輕彎。色散 n(λ) 未實施（M-S2 已知限制）。',
+  dims: '維度階梯 D=1..4：強 Huygens 只喺奇數維≥3 成立——D=3 格波前鋭利無尾跡，D=1/2/4 留尾跡。',
+  duel: '左=Born 視圖（波場+commits）；右=力律視圖（尾跡增強、波場壓暗）。同一後端、兩種呈現。',
+}
+
 async function main(): Promise<void> {
   const wasm = await init()
   getEl('status').textContent = 'ready'
@@ -53,9 +59,9 @@ async function main(): Promise<void> {
   const FH = Number(engine.height())
   const FIELD_BYTES = FW * FH * 4
   let seed = 12345n
+  let paused = false
 
-  const mem = (): WebAssembly.Memory =>
-    (wasm as unknown as { memory: WebAssembly.Memory }).memory
+  const mem = (): WebAssembly.Memory => (wasm as unknown as { memory: WebAssembly.Memory }).memory
 
   const readF32 = (ptr: number, len: number): Float32Array => {
     try {
@@ -72,57 +78,55 @@ async function main(): Promise<void> {
   const readCommits = (): Float32Array =>
     readF32(engine.commits_ptr() as unknown as number, Number(engine.commits_f32_len()))
 
-  const canvas = getEl<HTMLCanvasElement>('canvas')
-  const obsXInput = getEl<HTMLInputElement>('obsX')
-  const obsWInput = getEl<HTMLInputElement>('obsW')
-  const barrierInput = getEl<HTMLInputElement>('barrierX')
-  const sepInput = getEl<HTMLInputElement>('slitSep')
-  const kInput = getEl<HTMLInputElement>('waveK')
-  const sceneSel = getEl<HTMLSelectElement>('sceneSel')
-  const sweepInput = getEl<HTMLInputElement>('sweep')
-  const speedInput = getEl<HTMLInputElement>('sweepSpeed')
-  const accumInput = getEl<HTMLInputElement>('accum')
-  const histInput = getEl<HTMLInputElement>('hist')
-  const gpuInfo = getEl('gpuInfo')
-  const commitInfo = getEl('commitInfo')
-  const timeInfo = getEl('timeInfo')
-
-  const currentObsX = (): number => Number.parseFloat(obsXInput.value)
-  const currentObsW = (): number => Number.parseFloat(obsWInput.value)
-  const currentBarrier = (): number => Number.parseFloat(barrierInput.value)
-  const currentSep = (): number => Number.parseFloat(sepInput.value)
-  const currentK = (): number => Number.parseFloat(kInput.value)
-  const currentScene = (): number => Number.parseInt(sceneSel.value, 10)
-  const slitYs = (): [number, number] => {
-    const s = currentSep()
-    return [0.5 - s / 2, 0.5 + s / 2]
+  const el = {
+    canvas: getEl<HTMLCanvasElement>('canvas'),
+    obsX: getEl<HTMLInputElement>('obsX'),
+    obsW: getEl<HTMLInputElement>('obsW'),
+    barrier: getEl<HTMLInputElement>('barrierX'),
+    sep: getEl<HTMLInputElement>('slitSep'),
+    k: getEl<HTMLInputElement>('waveK'),
+    sweep: getEl<HTMLInputElement>('sweep'),
+    speed: getEl<HTMLInputElement>('sweepSpeed'),
+    accum: getEl<HTMLInputElement>('accum'),
+    hist: getEl<HTMLInputElement>('hist'),
+    particles: getEl<HTMLInputElement>('particles'),
+    arrows: getEl<HTMLInputElement>('arrows'),
+    lensing: getEl<HTMLInputElement>('lensing'),
+    dims: getEl<HTMLInputElement>('dims'),
+    duel: getEl<HTMLInputElement>('duel'),
+    docent: getEl<HTMLInputElement>('docent'),
+    scene: getEl<HTMLSelectElement>('sceneSel'),
+    gpuInfo: getEl('gpuInfo'),
+    commitInfo: getEl('commitInfo'),
+    timeInfo: getEl('timeInfo'),
+    sigInfo: getEl('sigInfo'),
+    docentSide: getEl('docentSide'),
+    help: getEl('helpOverlay'),
+    selftest: getEl('selftest'),
+    unityBox: getEl('unityBox'),
+    customExpr: getEl<HTMLInputElement>('customExpr'),
   }
+  const fOn: HTMLInputElement[] = [0, 1, 2, 3].map((i) => getEl<HTMLInputElement>('fOn' + String(i)))
+  const fW: HTMLInputElement[] = [0, 1, 2, 3].map((i) => getEl<HTMLInputElement>('fW' + String(i)))
+
+  const num = (v: string): number => Number.parseFloat(v)
+  const obsX = (): number => num(el.obsX.value)
+  const sceneId = (): number => Number.parseInt(el.scene.value, 10)
 
   const gpu = (navigator as unknown as { gpu?: unknown }).gpu as
-    | {
-        requestAdapter(): Promise<unknown>
-        getPreferredCanvasFormat(): string
-      }
+    | { requestAdapter(): Promise<unknown>; getPreferredCanvasFormat(): string }
     | undefined
   if (gpu === undefined) {
-    gpuInfo.textContent = 'webgpu: unavailable (backend still works)'
-    const ys = slitYs()
-    engine.init_double_slit(currentBarrier(), ys[0], ys[1], currentK())
-    engine.sample_commits(0.75, 12, seed)
-    seed = seed + 1n
-    commitInfo.textContent = 'commits: ' + String(engine.commits_len())
+    el.gpuInfo.textContent = 'webgpu: unavailable (backend still works)'
     return
   }
-
-  const adapter = (await gpu.requestAdapter()) as null | {
-    requestDevice(): Promise<unknown>
-  }
+  const adapter = (await gpu.requestAdapter()) as null | { requestDevice(): Promise<unknown> }
   if (adapter === null) {
-    gpuInfo.textContent = 'webgpu: no adapter'
+    el.gpuInfo.textContent = 'webgpu: no adapter'
     return
   }
   const device = (await adapter.requestDevice()) as Device
-  const context = canvas.getContext('webgpu') as unknown as {
+  const context = el.canvas.getContext('webgpu') as unknown as {
     configure(c: unknown): void
     getCurrentTexture(): { createView(): unknown }
   }
@@ -130,54 +134,35 @@ async function main(): Promise<void> {
   context.configure({ device, format, alphaMode: 'opaque' })
 
   const fitCanvas = (): void => {
-    const r = canvas.getBoundingClientRect()
+    const r = el.canvas.getBoundingClientRect()
     const w = Math.max(1, Math.round(r.width))
     const h = Math.max(1, Math.round(r.height))
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w
-      canvas.height = h
+    if (el.canvas.width !== w || el.canvas.height !== h) {
+      el.canvas.width = w
+      el.canvas.height = h
     }
   }
   fitCanvas()
 
-  const uniformBuf = device.createBuffer({
-    size: UNIFORM_BYTES,
-    usage: BUFFER_UNIFORM | BUFFER_COPY_DST,
-  }) as unknown
-  const commitBuf = device.createBuffer({
-    size: COMMIT_BYTES,
-    usage: BUFFER_STORAGE | BUFFER_COPY_DST,
-  }) as unknown
-  const realBuf = device.createBuffer({
-    size: FIELD_BYTES,
-    usage: BUFFER_STORAGE | BUFFER_COPY_DST,
-  }) as unknown
-  const imagBuf = device.createBuffer({
-    size: FIELD_BYTES,
-    usage: BUFFER_STORAGE | BUFFER_COPY_DST,
-  }) as unknown
-  const GRID_BYTES = 48 * 48 * 4
-  const nBuf = device.createBuffer({
-    size: GRID_BYTES,
-    usage: BUFFER_STORAGE | BUFFER_COPY_DST,
-  }) as unknown
-  const mBuf = device.createBuffer({
-    size: GRID_BYTES,
-    usage: BUFFER_STORAGE | BUFFER_COPY_DST,
-  }) as unknown
+  const mkBuf = (size: number, usage: number): unknown =>
+    device.createBuffer({ size, usage }) as unknown
+  const uniformBuf = mkBuf(UNIFORM_BYTES, BUFFER_UNIFORM | BUFFER_COPY_DST)
+  const commitBuf = mkBuf(COMMIT_BYTES, BUFFER_STORAGE | BUFFER_COPY_DST)
+  const realBuf = mkBuf(FIELD_BYTES, BUFFER_STORAGE | BUFFER_COPY_DST)
+  const imagBuf = mkBuf(FIELD_BYTES, BUFFER_STORAGE | BUFFER_COPY_DST)
+  const nBuf = mkBuf(9216, BUFFER_STORAGE | BUFFER_COPY_DST)
+  const mBuf = mkBuf(9216, BUFFER_STORAGE | BUFFER_COPY_DST)
+  const trailBuf = mkBuf(1024 * 16, BUFFER_STORAGE | BUFFER_COPY_DST)
+  const forceBuf = mkBuf(48 * 48 * 10 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
+  const dimsBuf = mkBuf(77568 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
+
   const module = device.createShaderModule({ code: wgslSrc }) as unknown as {
-    getCompilationInfo(): Promise<{
-      messages: { type: string; message: string; lineNum: number; linePos: number }[]
-    }>
+    getCompilationInfo(): Promise<{ messages: { type: string; message: string; lineNum: number }[] }>
   }
-  // Surface WGSL compile errors on-screen: an invalid pipeline draws
-  // silently-black, which is otherwise indistinguishable from "working".
   module.getCompilationInfo().then((info) => {
     const errs = info.messages.filter((m) => m.type === 'error')
     if (errs.length > 0) {
-      const first = errs[0]
-      gpuInfo.textContent = 'wgsl error L' + String(first.lineNum) + ': ' + first.message
-      console.error(info.messages)
+      el.gpuInfo.textContent = 'wgsl error L' + String(errs[0].lineNum) + ': ' + errs[0].message
     }
   })
   const pipeline = device.createRenderPipeline({
@@ -195,25 +180,33 @@ async function main(): Promise<void> {
       { binding: 3, resource: { buffer: imagBuf } },
       { binding: 4, resource: { buffer: nBuf } },
       { binding: 5, resource: { buffer: mBuf } },
+      { binding: 6, resource: { buffer: trailBuf } },
+      { binding: 7, resource: { buffer: forceBuf } },
+      { binding: 8, resource: { buffer: dimsBuf } },
     ],
   }) as unknown
 
-  const writeUniform = (obsX: number): void => {
-    const ys = slitYs()
+  const flags = (): number =>
+    (el.dims.checked ? 1 : 0) | (el.duel.checked ? 2 : 0) | (el.arrows.checked ? 4 : 0)
+
+  const writeUniform = (oX: number): void => {
     const ub = new ArrayBuffer(UNIFORM_BYTES)
     const dv = new DataView(ub)
-    dv.setFloat32(0, obsX, true)
-    dv.setFloat32(4, currentObsW(), true)
+    dv.setFloat32(0, oX, true)
+    dv.setFloat32(4, num(el.obsW.value), true)
     dv.setFloat32(8, DOT_RADIUS, true)
     dv.setUint32(12, Number(engine.commits_len()), true)
     dv.setUint32(16, FW, true)
     dv.setUint32(20, FH, true)
     dv.setFloat32(24, engine.time(), true)
-    dv.setFloat32(28, 0, true)
-    dv.setFloat32(32, currentBarrier(), true)
-    dv.setFloat32(36, ys[0], true)
-    dv.setFloat32(40, ys[1], true)
-    dv.setFloat32(44, histInput.checked ? 1 : 0, true)
+    dv.setUint32(28, Number(engine.trails_len()), true)
+    dv.setFloat32(32, num(el.barrier.value), true)
+    dv.setFloat32(36, 0.4, true)
+    dv.setFloat32(40, 0.6, true)
+    dv.setFloat32(44, el.hist.checked ? 1 : 0, true)
+    dv.setUint32(48, flags(), true)
+    dv.setFloat32(52, 0, true)
+    dv.setFloat32(56, 0, true)
     device.queue.writeBuffer(uniformBuf, 0, new Uint8Array(ub))
   }
 
@@ -222,7 +215,7 @@ async function main(): Promise<void> {
     const padded = new Float32Array(COMMIT_FLOATS)
     padded.set(src.subarray(0, Math.min(src.length, COMMIT_FLOATS)))
     device.queue.writeBuffer(commitBuf, 0, padded)
-    commitInfo.textContent = 'commits: ' + String(engine.commits_len())
+    el.commitInfo.textContent = 'commits: ' + String(engine.commits_len())
   }
 
   const uploadField = (): void => {
@@ -247,54 +240,260 @@ async function main(): Promise<void> {
     }
   }
 
+  const uploadTrails = (): void => {
+    const src = readF32(engine.trails_ptr() as unknown as number, Number(engine.trails_f32_len()))
+    const padded = new Float32Array(1024 * 4)
+    padded.set(src.subarray(0, Math.min(src.length, 1024 * 4)))
+    device.queue.writeBuffer(trailBuf, 0, padded)
+  }
+
+  const uploadForce = (): void => {
+    const g = readF32(engine.force_grid_ptr() as unknown as number, Number(engine.force_grid_len()))
+    if (g.length === 23040) {
+      device.queue.writeBuffer(forceBuf, 0, g)
+    }
+  }
+
+  const uploadDims = (): void => {
+    const d = readF32(engine.dims_ptr() as unknown as number, Number(engine.dims_f32_len()))
+    if (d.length === 77568) {
+      device.queue.writeBuffer(dimsBuf, 0, d)
+    }
+  }
+
+  const syncForces = (): void => {
+    for (let i = 0; i < 4; i = i + 1) {
+      engine.set_force_on(i, fOn[i].checked)
+      engine.set_weight(i, num(fW[i].value))
+    }
+    engine.set_lensing(el.lensing.checked)
+  }
+
   const rebuildField = (): void => {
-    engine.set_barrier(currentBarrier())
-    engine.set_sep(currentSep())
-    engine.set_k(currentK())
-    engine.set_scene(currentScene())
+    engine.set_barrier(num(el.barrier.value))
+    engine.set_sep(num(el.sep.value))
+    engine.set_k(num(el.k.value))
+    syncForces()
+    engine.set_scene(sceneId())
     uploadField()
     uploadGrids()
-    engine.sample_commits(currentObsX(), 12, seed)
+    engine.sample_commits(obsX(), 12, seed)
     seed = seed + 1n
-    writeUniform(currentObsX())
+    writeUniform(obsX())
+    uploadCommits()
+    updateDocent()
+  }
+
+  const updateDocent = (): void => {
+    if (!el.docent.checked) {
+      el.docentSide.style.display = 'none'
+      return
+    }
+    el.docentSide.style.display = 'block'
+    let t = DOCENT['s' + String(sceneId())] ?? ''
+    if (el.dims.checked) {
+      t = DOCENT.dims
+    } else if (el.duel.checked) {
+      t = DOCENT.duel
+    }
+    el.docentSide.textContent = t
+  }
+
+  const resample = (): void => {
+    engine.clear_commits()
+    engine.sample_commits(obsX(), 12, seed)
+    seed = seed + 1n
+    writeUniform(obsX())
     uploadCommits()
   }
 
-  rebuildField()
-  gpuInfo.textContent = 'webgpu: ready'
+  const runUnity = (): void => {
+    el.unityBox.textContent = 'running batch (sync, ~1-2s)...'
+    window.setTimeout(() => {
+      const json = engine.run_unity(400) as unknown as string
+      const rows = JSON.parse(json) as {
+        env: number
+        cells: { f: string; pass: boolean; hist: number[] }[]
+      }[]
+      const names = ['corpuscular', 'wave', 'born', 'guidance', 'hforce']
+      let html = '<table style="color:#ddd;font-size:11px;border-collapse:collapse"><tr><td>env\\formula</td>'
+      for (const n of names) {
+        html += '<td style="padding:2px 6px">' + n + '</td>'
+      }
+      html += '</tr>'
+      for (const r of rows) {
+        html += '<tr><td style="padding:2px 6px">scene' + String(r.env) + '</td>'
+        for (const c of r.cells) {
+          const all = c.pass
+          html +=
+            '<td style="padding:2px 6px;color:' +
+            (all ? '#6f6' : '#f66') +
+            '">' +
+            (all ? 'PASS' : 'fail') +
+            '</td>'
+        }
+        html += '</tr>'
+      }
+      html += '</table><div style="font-size:10px;color:#999">一列全綠 = 該公式統一回答所有環境（同時接納判據）</div>'
+      el.unityBox.innerHTML = html
+    }, 30)
+  }
 
-  getEl('resample').addEventListener('click', () => {
-    engine.clear_commits()
-    engine.sample_commits(currentObsX(), 12, seed)
-    seed = seed + 1n
-    writeUniform(currentObsX())
-    uploadCommits()
+  const exportSig = (): void => {
+    const s = engine.signature() as unknown as number[]
+    const data = {
+      scene: sceneId(),
+      t: engine.time(),
+      signature: { peaks: s[0], fringe_shift: s[1], deflection: s[2], hist_corr: s[3] },
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'signature.json'
+    a.click()
+  }
+
+  rebuildField()
+  el.gpuInfo.textContent = 'webgpu: ready'
+
+  getEl('resample').addEventListener('click', resample)
+  getEl('unityBtn').addEventListener('click', runUnity)
+  getEl('exportBtn').addEventListener('click', exportSig)
+  getEl('applyExpr').addEventListener('click', () => {
+    const ok = engine.set_custom_expr(el.customExpr.value)
+    getEl('exprStatus').textContent = ok ? 'expr ok' : 'expr rejected'
   })
-  barrierInput.addEventListener('change', rebuildField)
-  sepInput.addEventListener('change', rebuildField)
-  kInput.addEventListener('change', rebuildField)
-  sceneSel.addEventListener('change', rebuildField)
+  el.scene.addEventListener('change', rebuildField)
+  el.barrier.addEventListener('change', rebuildField)
+  el.sep.addEventListener('change', rebuildField)
+  el.k.addEventListener('change', rebuildField)
+  for (let i = 0; i < 4; i = i + 1) {
+    fOn[i].addEventListener('change', syncForces)
+    fW[i].addEventListener('change', syncForces)
+  }
+  el.lensing.addEventListener('change', syncForces)
+  el.dims.addEventListener('change', updateDocent)
+  el.duel.addEventListener('change', updateDocent)
+  el.docent.addEventListener('change', updateDocent)
+
+  let dragIdx = -1
+  const toUv = (ev: PointerEvent): [number, number] => {
+    const r = el.canvas.getBoundingClientRect()
+    return [(ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height]
+  }
+  el.canvas.addEventListener('pointerdown', (ev) => {
+    const [u, v] = toUv(ev)
+    for (let i = 0; i < 4; i = i + 1) {
+      const sx = engine.source_x(i) as unknown as number
+      const sy = engine.source_y(i) as unknown as number
+      if (Math.hypot(u - sx, v - sy) < 0.04) {
+        dragIdx = i
+        return
+      }
+    }
+  })
+  window.addEventListener('pointermove', (ev) => {
+    if (dragIdx < 0) {
+      return
+    }
+    const [u, v] = toUv(ev)
+    engine.set_source(dragIdx, u, v, 1.0, dragIdx === 1 ? 1 : 0)
+  })
+  window.addEventListener('pointerup', () => {
+    dragIdx = -1
+  })
+
+  window.addEventListener('keydown', (ev) => {
+    const key = ev.key
+    if (key === '1') {
+      el.scene.value = '1'
+      rebuildField()
+    } else if (key === '2') {
+      el.scene.value = '3'
+      rebuildField()
+    } else if (key === '3') {
+      el.scene.value = '5'
+      rebuildField()
+    } else if (key === 'p') {
+      el.particles.checked = !el.particles.checked
+    } else if (key === 'h') {
+      el.hist.checked = !el.hist.checked
+    } else if (key === 'a') {
+      el.accum.checked = !el.accum.checked
+    } else if (key === 'd') {
+      el.duel.checked = !el.duel.checked
+      updateDocent()
+    } else if (key === 'l') {
+      el.dims.checked = !el.dims.checked
+      updateDocent()
+    } else if (key === 'g') {
+      el.docent.checked = !el.docent.checked
+      updateDocent()
+    } else if (key === 'u') {
+      runUnity()
+    } else if (key === 'r') {
+      resample()
+    } else if (key === 'e') {
+      exportSig()
+    } else if (key === ' ') {
+      paused = !paused
+      ev.preventDefault()
+    } else if (key === '[') {
+      el.obsW.value = String(Math.max(0, num(el.obsW.value) - 0.02))
+    } else if (key === ']') {
+      el.obsW.value = String(Math.min(0.5, num(el.obsW.value) + 0.02))
+    } else if (key === 'ArrowLeft') {
+      el.obsX.value = String(Math.max(0, obsX() - 0.02))
+    } else if (key === 'ArrowRight') {
+      el.obsX.value = String(Math.min(1.2, obsX() + 0.02))
+    } else if (key === '?') {
+      el.help.style.display = el.help.style.display === 'none' ? 'block' : 'none'
+    }
+  })
+
+  if (window.location.search.includes('selftest')) {
+    const json = engine.selftest() as unknown as string
+    const lines = JSON.parse(json) as { name: string; pass: boolean }[]
+    el.selftest.style.display = 'block'
+    el.selftest.textContent = lines
+      .map((l) => (l.pass ? 'PASS ' : 'FAIL ') + l.name)
+      .join('\n')
+    for (const l of lines) {
+      console.log((l.pass ? 'PASS ' : 'FAIL ') + l.name)
+    }
+  }
 
   let frames = 0
   let sweepT = 0
   const frame = (): void => {
     fitCanvas()
-    engine.step(0.016)
-    let obsX = currentObsX()
-    if (sweepInput.checked) {
-      sweepT = sweepT + 0.016 * Number.parseFloat(speedInput.value)
-      obsX = 0.6 + 0.6 * Math.sin(sweepT)
-      obsXInput.value = obsX.toFixed(2)
+    if (!paused) {
+      engine.step(0.016)
     }
-    // Accumulate: fresh Born samples stream in, oldest drain at 256.
-    // Dots pile up exactly where fringes are bright.
-    if (accumInput.checked && frames % 20 === 0) {
-      engine.sample_commits(obsX, 2, seed)
+    let oX = obsX()
+    if (el.sweep.checked && !paused) {
+      sweepT = sweepT + 0.016 * num(el.speed.value)
+      oX = 0.6 + 0.6 * Math.sin(sweepT)
+      el.obsX.value = oX.toFixed(2)
+    }
+    if (el.particles.checked && !paused && frames % 45 === 0) {
+      engine.spawn(6, seed)
+      seed = seed + 1n
+    }
+    if (el.accum.checked && !paused && frames % 20 === 0) {
+      engine.sample_commits(oX, 2, seed)
       seed = seed + 1n
       uploadCommits()
     }
-    writeUniform(obsX)
+    writeUniform(oX)
     uploadField()
+    uploadTrails()
+    if (frames % 6 === 0) {
+      uploadForce()
+    }
+    if (el.dims.checked && frames % 3 === 0) {
+      uploadDims()
+    }
     const enc = device.createCommandEncoder()
     const view = context.getCurrentTexture().createView()
     const pass = enc.beginRenderPass({
@@ -307,8 +506,11 @@ async function main(): Promise<void> {
     device.queue.submit([enc.finish()])
     frames = frames + 1
     if (frames % 30 === 0) {
-      commitInfo.textContent = 'commits: ' + String(engine.commits_len())
-      timeInfo.textContent = 't: ' + engine.time().toFixed(2) + ' obs: ' + obsX.toFixed(2)
+      el.commitInfo.textContent = 'commits: ' + String(engine.commits_len())
+      el.timeInfo.textContent = 't: ' + engine.time().toFixed(2) + ' obs: ' + oX.toFixed(2)
+      const s = engine.signature() as unknown as number[]
+      el.sigInfo.textContent =
+        'sig peaks=' + s[0].toFixed(0) + ' shift=' + s[1].toFixed(3) + ' corr=' + s[3].toFixed(2)
     }
     requestAnimationFrame(frame)
   }

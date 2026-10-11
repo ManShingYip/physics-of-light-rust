@@ -183,6 +183,11 @@ pub struct Particle {
 
 ---
 
+## 6.5 里程碑狀態（2026-10-11）
+M-S1✓ M1✓ M2✓(weights only) M-S2△(dims+docent✓, pol 開放) M3✓ M4✓ M-S3✓ M5✓。
+開放項：guidance 雙縫敗(E3)、prism 彎折弱(E4)、S-POL/S-PROJ/S-GLUE/S-SOLVER-RAY 未實施。
+測試與快捷鍵目錄：`docs/TESTS.md`；實驗紀錄：`docs/EXPERIMENTS.md`。
+
 ## 7. 風險
 
 - 數值穩定：多力疊加易爆積分 → 限 dt、限速度、力軟核（r²+ε²）。

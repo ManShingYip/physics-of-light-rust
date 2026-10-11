@@ -44,3 +44,11 @@
 ## 孤兒審計
 - 無代碼之卡：M# 欄位標示，允許（規劃中）。
 - 無卡之代碼：**禁止**；發現即補卡或刪除代碼（審計時點：每里程碑末）。
+
+## 狀態更新（2026-10-11 batch）
+轉 ✓：S-SCENE, S-SOLVER-WAVE, S-FORCE-GRAV, S-INTEGRATOR, S-SOLVER-PARTICLE,
+S-FORCE-GUID, S-FORCE-EM, S-FORCE-BOUND, S-DOMINANCE, S-SIGNATURE, S-LENSING,
+S-DIM, S-EXPLAIN, S-GRID, S-UNITY。
+備註：S-COUPLING=weights only（K 交叉項延後）；S-FORCE-GUID 實現但 unity 敗（E3）；
+S-LENSING 實現但彎折弱（E4）。
+仍 pending：S-SOLVER-RAY, S-POL, S-PROJ-K/W/PATH, S-GLUE（開放項，見 EXPERIMENTS/TESTS）。

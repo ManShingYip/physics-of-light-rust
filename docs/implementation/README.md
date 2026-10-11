@@ -44,3 +44,15 @@ M2 ─→ M4 lensing                                                        │
 | STEP-M4.md | M4 | 重力 lensing 波場（力—力交互） |
 | STEP-M-S3.md | M-S3 | 環境網格批次＋統一矩陣 |
 | STEP-M5.md | M5 | duel＋自訂力律槽＋EXPERIMENTS |
+
+## 4. 完成紀錄（2026-10-11，batch completion）
+| STEP | 狀態 | 證據 | 備註 |
+|---|---|---|---|
+| M-S1 | 完成 | sc1/sc3/m1 截圖；dump.png | prism 彎折弱→E4 開放項 |
+| M1 | 完成 | m1.png（青色尾跡穿縫） | — |
+| M2 | 完成 | all1.png（箭頭層＋青/橙 dominance） | K 交叉項延後（weights only） |
+| M-S2 | 部分 | all2.png（D1-4 階梯＋docent） | S-POL 未實施→開放項 |
+| M3 | 完成 | sig 行 peaks=5 corr=0.87；export 鍵 | 拖曳已接 pointer events |
+| M4 | 完成 | lensing checkbox；E4 記錄彎折弱 | — |
+| M-S3 | 完成 | unity4.png 矩陣 | guidance/hforce 敗=E3 開放項 |
+| M5 | 完成 | duel checkbox＋expr slot＋EXPERIMENTS.md | parser 白名單 6 tests |

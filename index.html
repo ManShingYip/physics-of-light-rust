@@ -5,17 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Physics of Light: an interactive double-slit visualization. A Rust/WASM backend holds the un-collapsed quantum wave field (pending superposition); a WebGPU/WGSL frontend renders the observation line where it commits into classical particle hits. Drag obs_line_x to sweep the pending-to-committed transition."
+      content="Physics of Light: a composable light-phenomena sandbox. A Rust/WASM backend holds un-collapsed wave fields and force-driven photon particles; a WebGPU/WGSL frontend renders observation as commitment. Scenes, force channels, dimension ladder, and a unity matrix test whether one formula answers all experiments."
     />
     <title>Physics of Light — Frontend/Backend</title>
   </head>
   <body>
     <canvas id="canvas"></canvas>
-    <div id="ui" style="position: fixed; top: 1rem; left: 1rem; color: #fff; font-family: monospace; background: rgba(0,0,0,0.55); padding: 0.6rem 0.8rem; border-radius: 8px;">
+    <div id="ui" style="position: fixed; top: 1rem; left: 1rem; color: #fff; font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.55); padding: 0.6rem 0.8rem; border-radius: 8px; max-width: 300px;">
       <div>Backend (Rust/Wasm): <span id="status">loading...</span></div>
       <div>2 + 2 = <span id="result">-</span></div>
       <div id="gpuInfo">webgpu: ...</div>
       <div id="commitInfo">commits: -</div>
+      <div id="timeInfo">t: 0.00</div>
+      <div id="sigInfo">sig -</div>
       <label style="display:block; margin-top:0.4rem;">scene
         <select id="sceneSel">
           <option value="5" selected>doubleslit (interference)</option>
@@ -23,25 +25,65 @@
           <option value="3">prism (refraction bend)</option>
         </select>
       </label>
-      <label style="display:block; margin-top:0.4rem;">obs_line_x <input id="obsX" type="range" min="0" max="1.2" step="0.01" value="0.5" /></label>
+      <label style="display:block;">obs_line_x <input id="obsX" type="range" min="0" max="1.2" step="0.01" value="0.5" /></label>
       <label style="display:block;">obs_width <input id="obsW" type="range" min="0" max="0.5" step="0.01" value="0.1" /></label>
       <label style="display:block;">barrier_x <input id="barrierX" type="range" min="0.05" max="0.9" step="0.01" value="0.3" /></label>
       <label style="display:block;">slit_sep <input id="slitSep" type="range" min="0.05" max="0.5" step="0.01" value="0.2" /></label>
       <label style="display:block;">wave_k <input id="waveK" type="range" min="20" max="120" step="1" value="60" /></label>
       <label style="display:block;"><input id="sweep" type="checkbox" /> sweep obs (reversible)</label>
       <label style="display:block;">speed <input id="sweepSpeed" type="range" min="0.1" max="2" step="0.1" value="0.6" /></label>
-      <label style="display:block;"><input id="accum" type="checkbox" checked /> accumulate hits (build fringes)</label>
+      <label style="display:block;"><input id="accum" type="checkbox" checked /> accumulate hits</label>
       <label style="display:block;"><input id="hist" type="checkbox" checked /> fringe histogram</label>
-      <div id="timeInfo">t: 0.00</div>
-      <button id="resample" type="button" style="margin-top:0.4rem;">resample commits</button>
+      <label style="display:block;"><input id="particles" type="checkbox" checked /> particles + trails</label>
+      <label style="display:block;"><input id="arrows" type="checkbox" /> force arrows</label>
+      <label style="display:block;"><input id="lensing" type="checkbox" /> lensing (force-force)</label>
+      <label style="display:block;"><input id="dims" type="checkbox" /> dimension ladder D1-4</label>
+      <label style="display:block;"><input id="duel" type="checkbox" /> duel (Born vs force)</label>
+      <label style="display:block;"><input id="docent" type="checkbox" checked /> docent notes</label>
+      <div style="margin-top:0.4rem; border-top:1px solid #444; padding-top:0.3rem;">forces (on / weight)</div>
+      <label>guid <input id="fOn0" type="checkbox" checked /> <input id="fW0" type="range" min="0" max="4" step="0.1" value="1" style="width:70px" /></label>
+      <label>grav <input id="fOn1" type="checkbox" checked /> <input id="fW1" type="range" min="0" max="4" step="0.1" value="1" style="width:70px" /></label>
+      <label>em <input id="fOn2" type="checkbox" /> <input id="fW2" type="range" min="0" max="4" step="0.1" value="1" style="width:70px" /></label>
+      <label>bnd <input id="fOn3" type="checkbox" checked /> <input id="fW3" type="range" min="0" max="4" step="0.1" value="1" style="width:70px" /></label>
+      <div style="margin-top:0.3rem;">custom F(d): <input id="customExpr" type="text" size="14" value="" placeholder="e.g. 2/d^2" /><button id="applyExpr" type="button">set</button> <span id="exprStatus"></span></div>
+      <div style="margin-top:0.4rem;">
+        <button id="resample" type="button">resample</button>
+        <button id="unityBtn" type="button">unity matrix</button>
+        <button id="exportBtn" type="button">export sig</button>
+      </div>
+      <div id="unityBox" style="margin-top:0.3rem;"></div>
     </div>
-    <div id="legend" style="position: fixed; bottom: 1rem; left: 1rem; color: #ddd; font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.55); padding: 0.6rem 0.8rem; border-radius: 8px; max-width: 340px;">
-      <div>左彩色波紋 = 待定量子場（顏色=相位，亮度=出現機率）</div>
-      <div>中間暗牆 + 兩缺口 = 雙縫屏障（牆右可見扇形干涉紋）</div>
-      <div>右黑區 = 已判斷區；白點 = 粒子命中事件</div>
-      <div>右緣青棒 = 打點累積出的干涉條紋直方圖</div>
-      <div>拖 obs_line_x：睇波場→黑區+白點的轉換前沿</div>
+    <div id="docentSide" style="position: fixed; top: 1rem; right: 1rem; color: #cfe; font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.55); padding: 0.6rem 0.8rem; border-radius: 8px; max-width: 260px;"></div>
+    <div id="legend" style="position: fixed; bottom: 1rem; left: 1rem; color: #ddd; font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.55); padding: 0.6rem 0.8rem; border-radius: 8px; max-width: 360px;">
+      <div>左彩色波紋 = 待定量子場（顏色=相位，亮度=機率）</div>
+      <div>暗牆/圓盤/楔形 = 場景幾何（mask）；青色亮點區 = n&gt;1 介質</div>
+      <div>青/橙/品紅尾跡 = 粒子軌跡，顏色=主導力（guid/grav/em）</div>
+      <div>右黑區白點 = 已 commit 事件；右緣青棒 = 干涉直方圖</div>
+      <div>拖畫布上力源可移動；快捷鍵按 ? 查看</div>
     </div>
+    <div id="helpOverlay" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.82); color: #eee; font-family: monospace; font-size: 13px; padding: 3rem; z-index: 10; white-space: pre-line;">
+SHORTCUTS
+1 / 2 / 3      scene: shadow / prism / doubleslit
+p              particles + dominance trails on/off
+h              fringe histogram on/off
+a              accumulate hits on/off
+d              duel mode (Born left / force right)
+l              dimension ladder D=1..4
+g              docent notes on/off
+u              run unity matrix (batch, sync)
+r              resample commits
+e              export signature JSON
+space          pause / resume
+[ ]            obs_width narrower / wider
+left / right   move obs line
+?              toggle this help
+
+SELFTEST: append ?selftest=1 to URL — runs backend assertions in-page.
+UNITY MATRIX: rows = scenes (5/1/3), cols = formulas
+(corpuscular / wave / born / guidance / hforce).
+A column all-PASS = that formula answers every environment at once.
+    </div>
+    <pre id="selftest" style="display:none; position: fixed; bottom: 1rem; right: 1rem; color: #9f9; font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.7); padding: 0.6rem; border-radius: 8px;"></pre>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
