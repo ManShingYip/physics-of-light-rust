@@ -24,7 +24,9 @@ npx tsc --noEmit
 node node_modules/vite/bin/vite.js build
 ```
 通過標準：四步零錯誤；見到 `Backend ready / 2+2=4 / webgpu: ready` 即停手回報。
-畫面驗證：headless Chrome 一次性截圖（swiftshader flag）；攞唔到 adapter 時如實報告。
+畫面驗證：`node scripts/shot.mjs <out.png> <url> <waitMs>`（playwright-core＋系統 Chrome，
+real-time 等待＋SwiftShader WebGPU flag）；截圖後用讀圖工具核對畫面元素。
+後端物理驗證（無 GPU）：`cargo run --example dump`＋`python examples/raw2png.py` → 讀 dump.png。
 
 ## 4. Deploy runbook
 ```

@@ -63,7 +63,8 @@ async function main(): Promise<void> {
         return new Float32Array(0)
       }
       return new Float32Array(mem().buffer, ptr, len).slice()
-    } catch {
+    } catch (e) {
+      console.error('readF32 fail', ptr, len, e)
       return new Float32Array(0)
     }
   }

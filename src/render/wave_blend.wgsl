@@ -87,6 +87,9 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     let mi = clamp(u32(uv.y * 48.0), 0u, 47u) * 48u + clamp(u32(uv.x * 48.0), 0u, 47u);
     let m = mask_grid[mi];
     ghost_color = ghost_color * (1.0 - m * 0.95);
+    // Medium tint: makes n>1 regions (prism) visible; keeps n_grid binding live.
+    let nn = n_grid[mi];
+    ghost_color = ghost_color * (1.0 + (nn - 1.0) * 0.6) + vec3<f32>(0.01, 0.015, 0.03) * (nn - 1.0);
 
     var dot_intensity = 0.0;
     for (var i = 0u; i < params.num_commits; i = i + 1u) {
