@@ -165,8 +165,9 @@ pub fn wave_step(
             let bx = x.min(w - 1 - x);
             let by = y.min(h - 1 - y);
             let bd = bx.min(by);
-            if bd < 4 && s.sponge {
-                let f = 0.88 + 0.03 * bd as f32;
+            let band = (w / 24).max(4);
+            if bd < band && s.sponge {
+                let f = 0.86 + 0.14 * (bd as f32 / band as f32);
                 a *= f;
                 b *= f;
             }
@@ -176,12 +177,14 @@ pub fn wave_step(
     }
     if s.drive {
         let dr = 0.35f32;
-        let cr = (omega * s.t).cos() * dr;
-        let ci = -(omega * s.t).sin() * dr;
+        let cr0 = (omega * s.t).cos() * dr;
+        let ci0 = -(omega * s.t).sin() * dr;
         for y in 0..h {
+            let yy = (y as f32 + 0.5) / h as f32 - 0.5;
+            let env = (-(yy * yy) / (2.0 * 0.18 * 0.18)).exp();
             let i = y * w + 1;
-            nr[i] += cr;
-            ni[i] += ci;
+            nr[i] += cr0 * env;
+            ni[i] += ci0 * env;
         }
     }
     if s.rev {

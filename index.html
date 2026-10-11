@@ -55,6 +55,14 @@
       <label style="display:block;"><input id="pol" type="checkbox" /> polarizers (Malus)</label>
       <label style="display:block;"><input id="disp" type="checkbox" /> dispersion n(lambda) RGB</label>
       <label style="display:block;"><input id="glue" type="checkbox" /> glue residual overlay</label>
+      <label style="display:block;"><input id="paint" type="checkbox" /> paint brush force (drag canvas)</label>
+      <label style="display:block;">res
+        <select id="resSel">
+          <option value="96">96</option>
+          <option value="128" selected>128</option>
+          <option value="256">256</option>
+        </select>
+      </label>
       <label style="display:block;">pol_a <input id="polA" type="range" min="0" max="3.14" step="0.01" value="0" /> pol_b <input id="polB" type="range" min="0" max="3.14" step="0.01" value="0.79" /></label>
       <label style="display:block;"><input id="docent" type="checkbox" checked /> docent notes</label>
       <div style="margin-top:0.4rem; border-top:1px solid #444; padding-top:0.3rem;">forces (on / weight)</div>
@@ -63,9 +71,9 @@
       <label>em <input id="fOn2" type="checkbox" /> <input id="fW2" type="range" min="0" max="4" step="0.1" value="1" style="width:70px" /></label>
       <label>bnd <input id="fOn3" type="checkbox" checked /> <input id="fW3" type="range" min="0" max="4" step="0.1" value="1" style="width:70px" /></label>
       <div style="margin-top:0.3rem;">slot laws:
-        <select id="slot0"><option value="0">guid</option><option value="1">grav</option><option value="2">coul</option><option value="3">bnd</option><option value="4">vortex</option><option value="5">custom</option><option value="6">qp</option></select>
-        <select id="slot1"><option value="0">guid</option><option value="1" selected>grav</option><option value="2">coul</option><option value="3">bnd</option><option value="4">vortex</option><option value="5">custom</option><option value="6">qp</option></select>
-        <select id="slot2"><option value="0">guid</option><option value="1">grav</option><option value="2" selected>coul</option><option value="3">bnd</option><option value="4">vortex</option><option value="5">custom</option><option value="6">qp</option></select>
+        <select id="slot0"><option value="0">guid</option><option value="1">grav</option><option value="2">coul</option><option value="3">bnd</option><option value="4">vortex</option><option value="5">custom</option><option value="6">qp</option><option value="7">brush</option></select>
+        <select id="slot1"><option value="0">guid</option><option value="1" selected>grav</option><option value="2">coul</option><option value="3">bnd</option><option value="4">vortex</option><option value="5">custom</option><option value="6">qp</option><option value="7">brush</option></select>
+        <select id="slot2"><option value="0">guid</option><option value="1">grav</option><option value="2" selected>coul</option><option value="3">bnd</option><option value="4">vortex</option><option value="5">custom</option><option value="6">qp</option><option value="7">brush</option></select>
         <select id="slot3"><option value="0">guid</option><option value="1">grav</option><option value="2">coul</option><option value="3" selected>bnd</option><option value="4">vortex</option><option value="5">custom</option></select>
       </div>
       <div>swap: <select id="swapI"><option>0</option><option>1</option><option>2</option><option>3</option></select> ⇄ <select id="swapJ"><option>0</option><option selected>1</option><option>2</option><option>3</option></select> <button id="swapBtn" type="button">swap</button></div>
@@ -110,5 +118,6 @@ A column all-PASS = that formula answers every environment at once.
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
+
 
 

@@ -75,3 +75,15 @@ glue 紅閃噪聲大減但仍非零（數值往返誤差）｜結論：PASS（�
 ## E22 — 2026-10-12 128² ＋軟邊 prism（強攻三）
 變更：主場 128²、楔軟邊 0.06、n 1+1.6｜观察：色散通道分離清晰、speckle 大減；clean fan 仍受楔內 λ≈3 cell 限制｜
 結論：改善 PASS、clean fan 開放（需 256² 或全 Helmholtz）｜截圖：p1.png
+
+## E23 — 2026-10-12 node regularization（強攻四）
+變更：gradS 分母加 5% 鄰域 ρ-floor、V_MAX 0.1、particle substep×2｜结果：guidance@shadow/prism 仍 fail｜
+結論：node stiffness 非唯一因；餘因＝spawn 分佈 vs |ψ|² 輸運誤差｜開放（下一步：|ψ|²-born spawn）
+
+## E24 — 2026-10-12 光束孔径＋解析度比例 sponge（強攻五）
+變更：drive 加 Gaussian 孔徑 σ=0.18（激光語義）；sponge 帶=w/24；res 選擇器 96/128/256｜
+观察：256² prism+disp 見彎折彩色光束、邊界反射消失；sig shift 可測｜結論：PASS（改善）；
+textbook clean fan 仍開放（需更窄束＋更長傳播距）｜截圖：q3.png
+
+## E25 — 2026-10-12 筆刷力場 L7
+變更：brush grid 48²×2、paint 拖曳畫力、slot 選 brush｜驗證：編譯＋arrows 層顯示；手動清單入 TESTS｜紀錄

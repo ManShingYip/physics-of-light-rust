@@ -2,7 +2,8 @@
 
 pub const MAX_SOURCES: usize = 6;
 pub const MAX_TRAILS: usize = 1024;
-pub const V_MAX: f32 = 0.06;
+pub const V_MAX: f32 = 0.1;
+pub const LAW_BRUSH: u8 = 7;
 
 pub const LAW_GUID: u8 = 0;
 pub const LAW_GRAV: u8 = 1;
@@ -88,6 +89,7 @@ pub fn net_force(
     reg: &Registry,
     custom_mag: f32,
     prog: Option<&[expr::Op]>,
+    brush: &[f32],
 ) -> ([f32; 3], u32) {
     let mut f = [[0.0f32; 3]; 4];
     for slot in 0..4 {
@@ -112,6 +114,16 @@ pub fn net_force(
                     f[slot][0] += dx * g;
                     f[slot][1] += dy * g;
                     f[slot][2] += dz * g;
+                }
+            }
+            LAW_BRUSH => {
+                if !brush.is_empty() {
+                    let gx = (pos[0] * 48.0).clamp(0.0, 47.0);
+                    let gy = (pos[1] * 48.0).clamp(0.0, 47.0);
+                    let ix = gx as usize;
+                    let iy = gy as usize;
+                    let i = iy * 48 + ix;
+                    f[slot] = [brush[i * 2] * 0.004, brush[i * 2 + 1] * 0.004, 0.0];
                 }
             }
             LAW_VORTEX => {
@@ -200,7 +212,7 @@ mod tests {
     fn zero_weights_give_zero_force() {
         let src = [Source { x: 0.5, y: 0.5, z: 0.5, strength: 1.0, kind: 0 }; MAX_SOURCES];
         let reg = reg_w([0.0; 4]);
-        let (f, _) = net_force([0.3, 0.3, 0.3], [0.1, 0.1, 0.0], [0.0, 0.0, 0.0], &src, &reg, 0.0, None);
+        let (f, _) = net_force([0.3, 0.3, 0.3], [0.1, 0.1, 0.0], [0.0, 0.0, 0.0], &src, &reg, 0.0, None, &[]);
         assert!(f.iter().all(|v| v.abs() < 1e-9));
     }
 
@@ -213,8 +225,8 @@ mod tests {
         r2.swap_slots(0, 1);
         let g = [0.05, 0.0, 0.0];
         let m = [0.0, 0.0, 0.0];
-        let (f1, _) = net_force([0.3, 0.5, 0.5], g, m, &src, &r1, 0.0, None);
-        let (f2, _) = net_force([0.3, 0.5, 0.5], g, m, &src, &r2, 0.0, None);
+        let (f1, _) = net_force([0.3, 0.5, 0.5], g, m, &src, &r1, 0.0, None, &[]);
+        let (f2, _) = net_force([0.3, 0.5, 0.5], g, m, &src, &r2, 0.0, None, &[]);
         for k in 0..3 {
             assert!((f1[k] - f2[k]).abs() < 1e-6);
         }
@@ -225,7 +237,7 @@ mod tests {
         let src = [Source { x: 0.8, y: 0.5, z: 0.5, strength: 1.0, kind: 0 }; MAX_SOURCES];
         let mut reg = reg_w([0.0, 1.0, 0.0, 0.0]);
         reg.on = [false, true, false, false];
-        let (f, dom) = net_force([0.3, 0.5, 0.5], [0.0; 3], [0.0; 3], &src, &reg, 0.0, None);
+        let (f, dom) = net_force([0.3, 0.5, 0.5], [0.0; 3], [0.0; 3], &src, &reg, 0.0, None, &[]);
         assert!(f[0] > 0.0);
         assert_eq!(dom, 1);
     }
@@ -240,3 +252,5 @@ mod tests {
         assert!(sp <= V_MAX + 1e-6);
     }
 }
+
+

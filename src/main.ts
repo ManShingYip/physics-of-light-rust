@@ -69,7 +69,9 @@ async function main(): Promise<void> {
   getEl('status').textContent = 'ready'
   getEl('result').textContent = add(2n, 2n).toString()
 
-  const engine = new WaveEngine(128, 128)
+  const params0 = new URLSearchParams(window.location.search)
+  const res0 = Number(params0.get('res') ?? '128')
+  let engine = new WaveEngine(res0, res0)
   const FW = Number(engine.width())
   const FH = Number(engine.height())
   let seed = 12345n
@@ -108,6 +110,8 @@ async function main(): Promise<void> {
     rays: getEl<HTMLInputElement>('rays'),
     disp: getEl<HTMLInputElement>('disp'),
     glue: getEl<HTMLInputElement>('glue'),
+    paint: getEl<HTMLInputElement>('paint'),
+    resSel: getEl<HTMLSelectElement>('resSel'),
     dim3: getEl<HTMLInputElement>('dim3'),
     polA: getEl<HTMLInputElement>('polA'),
     polB: getEl<HTMLInputElement>('polB'),
@@ -210,6 +214,13 @@ async function main(): Promise<void> {
   let uploadSplats: () => void = () => {}
   let uploadProjs: () => void = () => {}
   let uploadDisp: () => void = () => {}
+  let dyn: { realBuf: unknown; imagBuf: unknown; projBuf: unknown; dispBuf: unknown; bg: unknown } = {
+    realBuf: null,
+    imagBuf: null,
+    projBuf: null,
+    dispBuf: null,
+    bg: null,
+  }
 
   function startGPU(): void {
     gpuOn = true
@@ -374,6 +385,7 @@ async function main(): Promise<void> {
         dev.queue.writeBuffer(bufs.proj, 0, viewF32(engine.projs_ptr() as unknown as number, Number(engine.projs_len())))
       }
 
+      dyn = { realBuf: bufs.real, imagBuf: bufs.imag, projBuf: bufs.proj, dispBuf: bufs.disp, bg: bindGroup }
       el.gpuInfo.textContent = 'webgpu: ready (enhanced)'
       uploadGrids()
       uploadField()
@@ -427,7 +439,7 @@ async function main(): Promise<void> {
           colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
         })
         pass.setPipeline(pipeline)
-        pass.setBindGroup(0, bindGroup)
+        pass.setBindGroup(0, dyn.bg)
         pass.draw(3)
         const ns = Number(engine.splats_len())
         if (ns > 0) {
@@ -685,6 +697,11 @@ async function main(): Promise<void> {
       engine.compute_projs()
       uploadProjs()
     })
+    el.resSel.value = String(res0)
+    el.resSel.addEventListener('change', () => {
+      params0.set('res', el.resSel.value)
+      window.location.search = params0.toString()
+    })
     el.scene.addEventListener('change', rebuildField)
     el.barrier.addEventListener('change', rebuildField)
     el.sep.addEventListener('change', rebuildField)
@@ -782,6 +799,13 @@ async function main(): Promise<void> {
       engine.set_source(dragSrc, (ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height, 1.0, dragSrc === 1 ? 1 : 0)
       return
     }
+    if (dragging && el.paint.checked && !el.dim3.checked) {
+      const r = el.canvas.getBoundingClientRect()
+      const u = (ev.clientX - r.left) / r.width
+      const v = (ev.clientY - r.top) / r.height
+      engine.brush_stroke(u, v, ev.movementX / r.width, ev.movementY / r.height)
+      return
+    }
     if (dragging && el.dim3.checked && gpuOn) {
       if (ev.shiftKey) {
         camPanX -= (ev.clientX - lastX) * 0.002
@@ -823,6 +847,10 @@ main().catch((e: unknown) => {
   console.error(e)
   document.getElementById('status')!.textContent = 'error'
 })
+
+
+
+
 
 
 

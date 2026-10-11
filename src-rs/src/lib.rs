@@ -86,6 +86,7 @@ pub struct WaveEngine {
     cam: [f32; 5],
     splats: Vec<f32>,
     batch: bool,
+    brush: Vec<f32>,
 }
 
 struct DimFields {
@@ -224,6 +225,7 @@ impl WaveEngine {
             cam: [0.7, 0.5, 1.6, 0.0, 0.0],
             splats: Vec::new(),
             batch: false,
+            brush: vec![0.0; 48 * 48 * 2],
         };
         e.solver.pre_re = e.real.clone();
         e.solver.pre_im = e.imag.clone();
@@ -344,7 +346,7 @@ impl WaveEngine {
                 };
                 let grad = [grad[0] * 0.006, grad[1] * 0.006, grad[2] * 0.006];
                 let maskg = [maskg[0] * 0.004, maskg[1] * 0.004, maskg[2] * 0.004];
-                let (mut f, d) = force::net_force([p.x, p.y, p.z], grad, maskg, &sources, &reg, cm, prog.as_deref());
+                let (mut f, d) = force::net_force([p.x, p.y, p.z], grad, maskg, &sources, &reg, cm, prog.as_deref(), &self.brush);
                 dom = d;
                 for si in 0..4 {
                     if reg.on[si] && reg.slots[si] == force::LAW_QP {
@@ -404,14 +406,14 @@ impl WaveEngine {
                         r2.on[k] = k == fi && saved[k];
                         r2.w[k] = if k == fi { 1.0 } else { 0.0 };
                     }
-                    let g0 = grad2(&self.real, &self.imag, w, h, (u * w as f32) as usize % w, (v * h as f32) as usize % h); let mg0 = maskg2(&mask, (u * 48.0) as usize % 48, (v * 48.0) as usize % 48); let (f, _) = force::net_force([u, v, 0.5], [g0[0] * 0.006, g0[1] * 0.006, 0.0], [mg0[0] * 0.004, mg0[1] * 0.004, 0.0], &sources, &r2, 0.0, None);
+                    let g0 = grad2(&self.real, &self.imag, w, h, (u * w as f32) as usize % w, (v * h as f32) as usize % h); let mg0 = maskg2(&mask, (u * 48.0) as usize % 48, (v * 48.0) as usize % 48); let (f, _) = force::net_force([u, v, 0.5], [g0[0] * 0.006, g0[1] * 0.006, 0.0], [mg0[0] * 0.004, mg0[1] * 0.004, 0.0], &sources, &r2, 0.0, None, &self.brush);
                     let o = (gy * 48 + gx) * 10 + fi * 2;
                     g[o] = f[0];
                     g[o + 1] = f[1];
                     acc[0] += reg.w[fi] * f[0] * if saved[fi] { 1.0 } else { 0.0 };
                     acc[1] += reg.w[fi] * f[1] * if saved[fi] { 1.0 } else { 0.0 };
                 }
-                let g1 = grad2(&self.real, &self.imag, w, h, (u * w as f32) as usize % w, (v * h as f32) as usize % h); let mg1 = maskg2(&mask, (u * 48.0) as usize % 48, (v * 48.0) as usize % 48); let (net, _) = force::net_force([u, v, 0.5], [g1[0] * 0.006, g1[1] * 0.006, 0.0], [mg1[0] * 0.004, mg1[1] * 0.004, 0.0], &sources, &reg, cm, None);
+                let g1 = grad2(&self.real, &self.imag, w, h, (u * w as f32) as usize % w, (v * h as f32) as usize % h); let mg1 = maskg2(&mask, (u * 48.0) as usize % 48, (v * 48.0) as usize % 48); let (net, _) = force::net_force([u, v, 0.5], [g1[0] * 0.006, g1[1] * 0.006, 0.0], [mg1[0] * 0.004, mg1[1] * 0.004, 0.0], &sources, &reg, cm, None, &self.brush);
                 let o = (gy * 48 + gx) * 10 + 8;
                 g[o] = net[0];
                 g[o + 1] = net[1];
@@ -1591,10 +1593,17 @@ fn grad2(re: &[f32], im: &[f32], w: usize, h: usize, x: usize, y: usize) -> [f32
     let xp = (x + 1).min(w - 1);
     let ym = y.saturating_sub(1) * w;
     let yp = (y + 1).min(h - 1) * w;
-    let rho = re[i] * re[i] + im[i] * im[i];
-    if rho < 1e-9 {
-        return [0.0, 0.0];
+    // node-aware regularization: floor rho by 5% of 3x3 neighbourhood max (E20 fix)
+    let mut nmax = 0.0f32;
+    for yy in [ym, y * w, yp] {
+        for xx in [xm, x, xp] {
+            let r2 = re[yy + xx] * re[yy + xx] + im[yy + xx] * im[yy + xx];
+            if r2 > nmax {
+                nmax = r2;
+            }
+        }
     }
+    let rho = re[i] * re[i] + im[i] * im[i] + 0.05 * nmax;
     let drx = (re[y * w + xp] - re[y * w + xm]) * 0.5;
     let dix = (im[y * w + xp] - im[y * w + xm]) * 0.5;
     let dry = (re[yp + x] - re[ym + x]) * 0.5;
@@ -1626,10 +1635,7 @@ fn grad3(re: &[f32], im: &[f32], r: usize, x: usize, y: usize, z: usize) -> [f32
     let yp = (y + 1).min(r - 1);
     let zm = z.saturating_sub(1);
     let zp = (z + 1).min(r - 1);
-    let rho = re[i] * re[i] + im[i] * im[i];
-    if rho < 1e-9 {
-        return [0.0, 0.0, 0.0];
-    }
+    let rho0 = re[i] * re[i] + im[i] * im[i];
     let d = |a: usize, b: usize, c: usize| (re[(c * r + b) * r + a], im[(c * r + b) * r + a]);
     let (r1, i1) = d(xp, y, z);
     let (r0, i0) = d(xm, y, z);
@@ -1637,6 +1643,14 @@ fn grad3(re: &[f32], im: &[f32], r: usize, x: usize, y: usize, z: usize) -> [f32
     let (r2, i2) = d(x, ym, z);
     let (r5, i5) = d(x, y, zp);
     let (r4, i4) = d(x, y, zm);
+    let mut nmax = rho0;
+    for (rr2, ii2) in [(r1, i1), (r0, i0), (r3, i3), (r2, i2), (r5, i5), (r4, i4)] {
+        let r2v = rr2 * rr2 + ii2 * ii2;
+        if r2v > nmax {
+            nmax = r2v;
+        }
+    }
+    let rho = rho0 + 0.05 * nmax;
     let drx = (r1 - r0) * 0.5;
     let dix = (i1 - i0) * 0.5;
     let dry = (r3 - r2) * 0.5;
@@ -1759,4 +1773,30 @@ mod tests {
 
 
 
+
+
+
+#[wasm_bindgen]
+impl WaveEngine {
+    pub fn brush_stroke(&mut self, x: f32, y: f32, dx: f32, dy: f32) {
+        let gx = (x * 48.0) as isize;
+        let gy = (y * 48.0) as isize;
+        for yy in (gy - 3)..=(gy + 3) {
+            for xx in (gx - 3)..=(gx + 3) {
+                if xx < 0 || xx > 47 || yy < 0 || yy > 47 {
+                    continue;
+                }
+                let d2 = ((xx - gx) * (xx - gx) + (yy - gy) * (yy - gy)) as f32;
+                let fall = (-d2 / 6.0).exp();
+                let i = (yy as usize * 48 + xx as usize) * 2;
+                self.brush[i] = (self.brush[i] + dx * 8.0 * fall).clamp(-1.0, 1.0);
+                self.brush[i + 1] = (self.brush[i + 1] + dy * 8.0 * fall).clamp(-1.0, 1.0);
+            }
+        }
+    }
+
+    pub fn brush_clear(&mut self) {
+        self.brush.fill(0.0);
+    }
+}
 
