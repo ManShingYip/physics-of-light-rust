@@ -2,7 +2,7 @@
 
 pub const MAX_SOURCES: usize = 6;
 pub const MAX_TRAILS: usize = 1024;
-pub const V_MAX: f32 = 0.02;
+pub const V_MAX: f32 = 0.06;
 
 pub const LAW_GUID: u8 = 0;
 pub const LAW_GRAV: u8 = 1;

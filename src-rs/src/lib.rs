@@ -327,49 +327,51 @@ impl WaveEngine {
             if !p.alive {
                 continue;
             }
-            let (grad, maskg) = if self.dim3 {
-                let r = self.res3;
-                let ix = ((p.x * r as f32) as usize).min(r - 1);
-                let iy = ((p.y * r as f32) as usize).min(r - 1);
-                let iz = ((p.z * r as f32) as usize).min(r - 1);
-                (grad3(&self.re3, &self.im3, r, ix, iy, iz), maskg3(&self.scene3.mask, r, ix, iy, iz))
-            } else {
-                let ix = ((p.x * w as f32) as usize).min(w - 1);
-                let iy = ((p.y * h as f32) as usize).min(h - 1);
-                let g = grad2(&self.real, &self.imag, w, h, ix, iy);
-                let mg = maskg2(&mask, (ix * 48) / w, (iy * 48) / h);
-                ([g[0], g[1], 0.0], [mg[0], mg[1], 0.0])
-            };
-            let grad = [grad[0] * 0.006, grad[1] * 0.006, grad[2] * 0.006];
-            let maskg = [maskg[0] * 0.004, maskg[1] * 0.004, maskg[2] * 0.004];
-            let (mut f, dom) = force::net_force([p.x, p.y, p.z], grad, maskg, &sources, &reg, cm, prog.as_deref());
-            for si in 0..4 {
-                if reg.on[si] && reg.slots[si] == force::LAW_QP {
-                    let ix2 = ((p.x * w as f32) as usize).min(w - 1);
-                    let iy2 = ((p.y * h as f32) as usize).min(h - 1);
-                    let qv = qp_force(&self.real, &self.imag, w, h, ix2, iy2);
-                    f[0] += reg.w[si] * qv[0] * 0.0008;
-                    f[1] += reg.w[si] * qv[1] * 0.0008;
+            let mut dom = 0u32;
+            for _sub in 0..2 {
+                let (grad, maskg) = if self.dim3 {
+                    let r = self.res3;
+                    let ix = ((p.x * r as f32) as usize).min(r - 1);
+                    let iy = ((p.y * r as f32) as usize).min(r - 1);
+                    let iz = ((p.z * r as f32) as usize).min(r - 1);
+                    (grad3(&self.re3, &self.im3, r, ix, iy, iz), maskg3(&self.scene3.mask, r, ix, iy, iz))
+                } else {
+                    let ix = ((p.x * w as f32) as usize).min(w - 1);
+                    let iy = ((p.y * h as f32) as usize).min(h - 1);
+                    let g = grad2(&self.real, &self.imag, w, h, ix, iy);
+                    let mg = maskg2(&mask, (ix * 48) / w, (iy * 48) / h);
+                    ([g[0], g[1], 0.0], [mg[0], mg[1], 0.0])
+                };
+                let grad = [grad[0] * 0.006, grad[1] * 0.006, grad[2] * 0.006];
+                let maskg = [maskg[0] * 0.004, maskg[1] * 0.004, maskg[2] * 0.004];
+                let (mut f, d) = force::net_force([p.x, p.y, p.z], grad, maskg, &sources, &reg, cm, prog.as_deref());
+                dom = d;
+                for si in 0..4 {
+                    if reg.on[si] && reg.slots[si] == force::LAW_QP {
+                        let ix2 = ((p.x * w as f32) as usize).min(w - 1);
+                        let iy2 = ((p.y * h as f32) as usize).min(h - 1);
+                        let qv = qp_force(&self.real, &self.imag, w, h, ix2, iy2);
+                        f[0] += reg.w[si] * qv[0] * 0.0008;
+                        f[1] += reg.w[si] * qv[1] * 0.0008;
+                    }
                 }
-            }
-            if reg.on[0] && reg.slots.contains(&force::LAW_GUID) {
-                let gl = (grad[0] * grad[0] + grad[1] * grad[1] + grad[2] * grad[2]).sqrt();
-                if gl > 1e-9 {
-                    let sp = (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz).sqrt().max(0.004);
-                    let others = reg.on[1] || reg.on[2] || reg.on[3];
-                    let mixw = if others { 0.2 } else { 1.0 };
-                    p.vx = p.vx * (1.0 - mixw) + grad[0] / gl * sp * mixw;
-                    p.vy = p.vy * (1.0 - mixw) + grad[1] / gl * sp * mixw;
-                    p.vz = p.vz * (1.0 - mixw) + grad[2] / gl * sp * mixw;
+                if reg.on[0] && reg.slots.contains(&force::LAW_GUID) {
+                    let gl = (grad[0] * grad[0] + grad[1] * grad[1] + grad[2] * grad[2]).sqrt();
+                    if gl > 1e-9 {
+                        let others = reg.on[1] || reg.on[2] || reg.on[3];
+                        let mixw = if others { 0.2 } else { 1.0 };
+                        p.vx = p.vx * (1.0 - mixw) + grad[0] * cscale * mixw;
+                        p.vy = p.vy * (1.0 - mixw) + grad[1] * cscale * mixw;
+                        p.vz = p.vz * (1.0 - mixw) + grad[2] * cscale * mixw;
+                    }
                 }
+                force::integrate(p, f, dt * 0.5);
             }
-            force::integrate(p, f, dt);
             p.hue = dom;
             if self.tick % 2 == 0 && p.alive {
                 self.trails.push(force::Trail { x: p.x, y: p.y, z: p.z, hue: p.hue });
             }
-        }
-        while self.trails.len() > force::MAX_TRAILS {
+        }        while self.trails.len() > force::MAX_TRAILS {
             self.trails.remove(0);
         }
         self.particles.retain(|p| p.alive);
@@ -661,7 +663,23 @@ impl WaveEngine {
         for v in kproj.iter_mut() {
             *v /= kmax;
         }
-        // inverse DFT (cols then rows, +sign, 1/N^2) -> reconstruction for glue test
+        // S-GLUE: low-pass reconstruction residual = high-k structure (edges/fringes/obstructions)
+        let kcut = (w / 8).max(4);
+        let freq = |k: usize, nn: usize| -> usize {
+            let kk = k % nn;
+            kk.min(nn - kk)
+        };
+        let mut kr2 = kr.clone();
+        let mut ki2 = ki.clone();
+        for ky in 0..h {
+            for kx in 0..w {
+                if freq(kx, w) > kcut || freq(ky, h) > kcut {
+                    let i = ky * w + kx;
+                    kr2[i] = 0.0;
+                    ki2[i] = 0.0;
+                }
+            }
+        }
         let mut qr = vec![0.0f32; n];
         let mut qi = vec![0.0f32; n];
         for ky in 0..h {
@@ -672,8 +690,8 @@ impl WaveEngine {
                     let ph = tau * ((x * kx) as f32 / w as f32);
                     let c = ph.cos();
                     let s2 = ph.sin();
-                    sr += kr[ky * w + kx] * c - ki[ky * w + kx] * s2;
-                    si += kr[ky * w + kx] * s2 + ki[ky * w + kx] * c;
+                    sr += kr2[ky * w + kx] * c - ki2[ky * w + kx] * s2;
+                    si += kr2[ky * w + kx] * s2 + ki2[ky * w + kx] * c;
                 }
                 qr[ky * w + x] = sr / w as f32;
                 qi[ky * w + x] = si / w as f32;
@@ -938,8 +956,10 @@ impl WaveEngine {
         match env {
             5 => count_peaks(h) >= 3,
             1 => {
+                // geometric shadow cone at obs 0.8 for disk(0.55, r0.18) spans bins ~8-16;
+                // sides must sit OUTSIDE the cone.
                 let mid = h[10] + h[11] + h[12] + h[13];
-                let sides = h[4] + h[5] + h[6] + h[7] + h[16] + h[17] + h[18] + h[19];
+                let sides = h[3] + h[4] + h[5] + h[6] + h[18] + h[19] + h[20] + h[21];
                 mid < sides
             }
             _ => {
@@ -1718,6 +1738,8 @@ mod tests {
         assert!(f[0].abs() < 1e-4 && f[1].abs() < 1e-4);
     }
 }
+
+
 
 
 

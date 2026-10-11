@@ -107,6 +107,7 @@ async function main(): Promise<void> {
     pol: getEl<HTMLInputElement>('pol'),
     rays: getEl<HTMLInputElement>('rays'),
     disp: getEl<HTMLInputElement>('disp'),
+    glue: getEl<HTMLInputElement>('glue'),
     dim3: getEl<HTMLInputElement>('dim3'),
     polA: getEl<HTMLInputElement>('polA'),
     polB: getEl<HTMLInputElement>('polB'),
@@ -822,6 +823,7 @@ main().catch((e: unknown) => {
   console.error(e)
   document.getElementById('status')!.textContent = 'error'
 })
+
 
 
 

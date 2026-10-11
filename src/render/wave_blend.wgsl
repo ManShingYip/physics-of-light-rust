@@ -247,7 +247,7 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
         let rho = psi.x * psi.x + psi.y * psi.y;
         var ghost_color = phase_to_rgb(atan2(psi.y, psi.x), rho);
         if (disp_on) {
-            let di = clamp(u32(uv.y * 96.0), 0u, 95u) * 96u + clamp(u32(uv.x * 96.0), 0u, 95u);
+            let di = clamp(u32(uv.y * f32(params.field_h)), 0u, params.field_h - 1u) * params.field_w + clamp(u32(uv.x * f32(params.field_w)), 0u, params.field_w - 1u);
             let dc = vec3<f32>(disp_rgb[di * 3u], disp_rgb[di * 3u + 1u], disp_rgb[di * 3u + 2u]);
             ghost_color = dc;
         }
@@ -297,6 +297,11 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
             let level = clamp(count / 10.0, 0.0, 1.0);
             let frac = (uv.x - 0.94) / 0.06;
             rgb = select(vec3<f32>(0.2, 0.9, 1.0) * (0.4 + 0.6 * level), vec3<f32>(0.02, 0.03, 0.05), frac >= level);
+        }
+        if ((params.flags & 512u) != 0u) {
+            let gi2 = clamp(u32(uv.y * f32(params.field_h)), 0u, params.field_h - 1u) * params.field_w + clamp(u32(uv.x * f32(params.field_w)), 0u, params.field_w - 1u);
+            let gm2 = proj_buf[3u * params.field_w * params.field_h + gi2];
+            rgb = mix(rgb, vec3<f32>(1.0, 0.12, 0.08), clamp(gm2 * 2.0, 0.0, 0.85));
         }
     }
     return vec4<f32>(rgb, 1.0);

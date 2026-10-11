@@ -62,3 +62,16 @@
 ## E19 — 2026-10-12 128² ＋ separable full-step DFT glue
 變更：主場 96²→128²；glue 改 separable full-step DFT 往返｜观察：色散通道分離清晰（n1.png）；
 glue 紅閃噪聲大減但仍非零（數值往返誤差）｜結論：PASS（機制＋顯示）；obstruction 訊號提取待 windowing
+
+## E20 — 2026-10-12 guidance@shadow 深挖（強攻一）
+變更：substep×2＋V_MAX 0.06＋shadow 判據幾何修正（sides 移出影 cone）｜结果：仍 fail｜
+根因：ρ→0 node 處 ∇S 失效→粒子直穿影區（Bohm 數值已知硬處：node stiffness）｜
+未來方向：node-aware regularization（ρ-floor 平滑 ∇S）｜開放
+
+## E21 — 2026-10-12 glue band-residual（強攻二）
+變更：glue 改 low-k 重建殘差（kcut=w/8）＋全畫面 overlay（flag 512）｜观察：紅閃精確局部化於障礙牆；
+干涉扇（低 k）乾淨｜結論：PASS——obstruction 簽名提取成功｜截圖：p3.png
+
+## E22 — 2026-10-12 128² ＋軟邊 prism（強攻三）
+變更：主場 128²、楔軟邊 0.06、n 1+1.6｜观察：色散通道分離清晰、speckle 大減；clean fan 仍受楔內 λ≈3 cell 限制｜
+結論：改善 PASS、clean fan 開放（需 256² 或全 Helmholtz）｜截圖：p1.png
