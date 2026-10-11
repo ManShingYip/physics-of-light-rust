@@ -203,7 +203,7 @@ impl WaveEngine {
             dim3: false,
             res3: 32,
             points: Vec::new(),
-            raster: vec![0u8; 96 * 96 * 4],
+            raster: vec![0u8; 192 * 192 * 4],
             cam: [0.7, 0.5, 1.6, 0.0, 0.0],
             splats: Vec::new(),
         };
@@ -1133,9 +1133,10 @@ impl WaveEngine {
         self.points.len() as u32
     }
 
-    /// CPU rasterizer fallback (P3): RGBA 96x96 from 2D field or 3D mid-slice.
+    /// CPU rasterizer fallback (P3/T3): RGBA 192x192 bilinear from 2D field or 3D mid-slice.
     pub fn raster(&mut self) {
-        let w = 96usize;
+        let w = 192usize;
+        let fw = 96.0f32;
         for y in 0..w {
             for x in 0..w {
                 let (re, im) = if self.dim3 {
@@ -1146,7 +1147,25 @@ impl WaveEngine {
                     let i = (iz * r + iy) * r + ix;
                     (self.re3[i], self.im3[i])
                 } else {
-                    (self.real[y * 96 + x], self.imag[y * 96 + x])
+                    let px = (x as f32 + 0.5) / w as f32 * fw - 0.5;
+                    let py = (y as f32 + 0.5) / w as f32 * fw - 0.5;
+                    let x0 = px.floor() as isize;
+                    let y0 = py.floor() as isize;
+                    let fx = (px - x0 as f32).clamp(0.0, 1.0);
+                    let fy = (py - y0 as f32).clamp(0.0, 1.0);
+                    let mut acc = (0.0, 0.0);
+                    for dy in 0..2 {
+                        for dx in 0..2 {
+                            let xx = (x0 + dx).clamp(0, 95) as usize;
+                            let yy = (y0 + dy).clamp(0, 95) as usize;
+                            let wx = if dx == 0 { 1.0 - fx } else { fx };
+                            let wy = if dy == 0 { 1.0 - fy } else { fy };
+                            let i = yy * 96 + xx;
+                            acc.0 += self.real[i] * wx * wy;
+                            acc.1 += self.imag[i] * wx * wy;
+                        }
+                    }
+                    (acc.0, acc.1)
                 };
                 let rho = re * re + im * im;
                 let ph = im.atan2(re);
@@ -1155,7 +1174,7 @@ impl WaveEngine {
                     let t = ((((q % 1.0) + 1.0) % 1.0) * 6.0 - 3.0).abs() - 1.0;
                     t.clamp(0.0, 1.0)
                 };
-                let v = (rho * 0.8).clamp(0.0, 0.8) * 255.0;
+                let v = (rho / (rho + 0.85) * 1.35).clamp(0.0, 1.0) * 255.0;
                 let o = (y * w + x) * 4;
                 self.raster[o] = (f(hh) * v) as u8;
                 self.raster[o + 1] = (f(hh + 2.0 / 3.0) * v) as u8;
@@ -1514,6 +1533,7 @@ mod tests {
         assert!(e.commits.is_empty());
     }
 }
+
 
 
 

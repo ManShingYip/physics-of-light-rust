@@ -8,6 +8,9 @@
 | 後端物理 | CPU dump | `cargo run --example dump` + `python examples/raw2png.py` | 無 GPU 睇 solver 場（干涉扇形） |
 | 全鏈畫面 | playwright | `node scripts/shot.mjs <out> <url> <ms> <scene|none> <js|none>` | 真 Chrome+SwiftShader WebGPU 截圖 |
 | 理論裁決 | unity matrix | 畫面按鈕或鍵 `u` | 公式×環境矩陣，一列全綠=統一公式 |
+| 非瀏覽器・視窗 | minifb | `cargo run --features native --bin pol-native` | CPU raster 768×576 視窗＋splats/hist overlay；鍵 1-4/r/space/esc |
+| 非瀏覽器・终端 | Win32 console | `cargo run --features term --bin pol-term` | 120×44 半格真彩；零 crate 依賴 |
+| 非瀏覽器・產物 | PNG 序列 | `cargo run --example frames` | 30 幀 192² → frames/；ffmpeg 組 mp4 |
 
 ## 2. 快捷鍵（? 開關 help overlay）
 | 鍵 | 功能 |

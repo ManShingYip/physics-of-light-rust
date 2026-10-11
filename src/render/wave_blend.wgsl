@@ -81,17 +81,27 @@ fn phase_to_rgb(phase: f32, rho: f32) -> vec3<f32> {
     let r = clamp(abs(fract(h) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
     let g = clamp(abs(fract(h + 2.0 / 3.0) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
     let b = clamp(abs(fract(h + 1.0 / 3.0) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
-    return vec3<f32>(r, g, b) * clamp(rho * 0.8, 0.0, 0.8);
+    // soft-knee tone map: no clipping, no checkerboard blowout
+    let v = rho / (rho + 0.85);
+    return vec3<f32>(r, g, b) * (v * 1.35);
 }
 
 fn sample_field(uv: vec2<f32>) -> vec2<f32> {
     if (params.field_w == 0u || params.field_h == 0u) {
         return vec2<f32>(sin(uv.x * 20.0), cos(uv.x * 20.0));
     }
-    let ix = clamp(u32(uv.x * f32(params.field_w)), 0u, params.field_w - 1u);
-    let iy = clamp(u32(uv.y * f32(params.field_h)), 0u, params.field_h - 1u);
-    let idx = iy * params.field_w + ix;
-    return vec2<f32>(field_real[idx], field_imag[idx]);
+    let fw = f32(params.field_w);
+    let fh = f32(params.field_h);
+    let p = vec2<f32>(uv.x * fw - 0.5, uv.y * fh - 0.5);
+    let i0 = vec2<u32>(u32(max(floor(p.x), 0.0)), u32(max(floor(p.y), 0.0)));
+    let f = clamp(p - vec2<f32>(floor(p.x), floor(p.y)), vec2<f32>(0.0), vec2<f32>(1.0));
+    let ix1 = min(i0.x + 1u, params.field_w - 1u);
+    let iy1 = min(i0.y + 1u, params.field_h - 1u);
+    let a = vec2<f32>(field_real[i0.y * params.field_w + i0.x], field_imag[i0.y * params.field_w + i0.x]);
+    let b = vec2<f32>(field_real[i0.y * params.field_w + ix1], field_imag[i0.y * params.field_w + ix1]);
+    let c = vec2<f32>(field_real[iy1 * params.field_w + i0.x], field_imag[iy1 * params.field_w + i0.x]);
+    let d = vec2<f32>(field_real[iy1 * params.field_w + ix1], field_imag[iy1 * params.field_w + ix1]);
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
 fn sample_field3(p: vec3<f32>) -> vec2<f32> {

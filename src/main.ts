@@ -1,6 +1,8 @@
 ﻿import './style.css'
 import init, { add, WaveEngine } from '../pkg/wave_engine.js'
 import wgslSrc from './render/wave_blend.wgsl?raw'
+import glslSrc from './render/wave_blend.glsl?raw'
+import { Gl2Renderer } from './render/gl2.ts'
 
 const COMMIT_FLOATS = 256 * 4
 const COMMIT_BYTES = COMMIT_FLOATS * 4
@@ -138,7 +140,8 @@ async function main(): Promise<void> {
   const adapter = (gpu === undefined ? null : await gpu.requestAdapter()) as null | {
     requestDevice(d?: unknown): Promise<unknown>
   }
-  const useGPU = !nogpu && gpu !== undefined && adapter !== null
+  const gl2only = window.location.search.includes('gl2')
+  const useGPU = !nogpu && !gl2only && gpu !== undefined && adapter !== null
 
   let camYaw = 0.7
   let camPitch = 0.4
@@ -146,6 +149,7 @@ async function main(): Promise<void> {
   let camPanX = 0
   let camPanY = 0
   let govMode = 0
+  let maskDirty = true
 
   const renderMode = (): number => {
     const v = el.rmode.value
@@ -453,13 +457,13 @@ async function main(): Promise<void> {
       return
     }
     const off = document.createElement('canvas')
-    off.width = 96
-    off.height = 96
+    off.width = 192
+    off.height = 192
     const octx = off.getContext('2d')
     if (octx === null) {
       return
     }
-    const img = octx.createImageData(96, 96)
+    const img = octx.createImageData(192, 192)
     window.setInterval(() => {
       if (!paused) {
         engine.step(0.016)
@@ -518,7 +522,68 @@ async function main(): Promise<void> {
     }, 33)
   }
 
+  // ---- T2: WebGL2 universal baseline (Firefox/Safari/everywhere)
+  function startGL2(): boolean {
+    const r = new Gl2Renderer(el.canvas, glslSrc)
+    if (!r.ok) {
+      return false
+    }
+    gpuOn = false
+    el.gpuInfo.textContent = 'webgl2 baseline (universal GPU)'
+    const hist = new Array<number>(24).fill(0)
+    const splat3 = new Float32Array(8192 * 3)
+    let fr = 0
+    const loop = (): void => {
+      if (!paused) {
+        engine.step(0.016)
+      }
+      if (el.accum.checked && !paused && fr % 20 === 0) {
+        engine.sample_commits(obsX(), 2, seed)
+        seed = seed + 1n
+      }
+      if (maskDirty) {
+        r.setMaskN(
+          viewF32(engine.mask_ptr() as unknown as number, Number(engine.mask_len())),
+          viewF32(engine.n_ptr() as unknown as number, Number(engine.n_len())),
+        )
+        maskDirty = false
+      }
+      r.setField(
+        viewF32(engine.real_ptr() as unknown as number, Number(engine.real_len())),
+        viewF32(engine.imag_ptr() as unknown as number, Number(engine.imag_len())),
+        FW,
+        FH,
+      )
+      engine.project_splats(false)
+      const sp = viewF32(engine.splats_ptr() as unknown as number, Number(engine.splats_len()) * 4)
+      const n = Math.min(8192, sp.length / 4)
+      for (let i = 0; i < n; i = i + 1) {
+        splat3[i * 3] = sp[i * 4]
+        splat3[i * 3 + 1] = sp[i * 4 + 1]
+        splat3[i * 3 + 2] = sp[i * 4 + 3]
+      }
+      r.setPoints(splat3, n)
+      hist.fill(0)
+      const nc = Number(engine.commits_len())
+      const cv = viewF32(engine.commits_ptr() as unknown as number, nc * 4)
+      for (let i = 0; i < nc; i = i + 1) {
+        const b = Math.min(23, Math.floor(cv[i * 4 + 1] * 24))
+        hist[b] = hist[b] + 1
+      }
+      r.draw(obsX(), num(el.obsW.value), el.hist.checked ? 1 : 0, el.duel.checked ? 1 : 0, hist, FW, FH, 7)
+      fr = fr + 1
+      if (fr % 30 === 0) {
+        el.commitInfo.textContent = 'commits: ' + String(engine.commits_len())
+        el.timeInfo.textContent = 't: ' + engine.time().toFixed(2) + ' obs: ' + obsX().toFixed(2)
+      }
+      requestAnimationFrame(loop)
+    }
+    loop()
+    return true
+  }
+
   const rebuildField = (): void => {
+    maskDirty = true
     engine.set_barrier(num(el.barrier.value))
     engine.set_sep(num(el.sep.value))
     engine.set_k(num(el.k.value))
@@ -731,6 +796,8 @@ async function main(): Promise<void> {
 
   if (useGPU) {
     startGPU()
+  } else if (!nogpu && startGL2()) {
+    // webgl2 baseline active
   } else {
     startCPU()
   }
@@ -743,3 +810,5 @@ main().catch((e: unknown) => {
   console.error(e)
   document.getElementById('status')!.textContent = 'error'
 })
+
+

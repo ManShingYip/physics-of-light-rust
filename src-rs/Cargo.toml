@@ -8,3 +8,22 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 wasm-bindgen = "0.2"
+
+[features]
+native = ["dep:minifb"]
+term = []
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+minifb = { version = "0.27", optional = true }
+crossterm = { version = "0.28", optional = true }
+
+[[bin]]
+name = "pol-native"
+path = "src/bin/pol_native.rs"
+required-features = ["native"]
+
+[[bin]]
+name = "pol-term"
+path = "src/bin/pol_term.rs"
+required-features = ["term"]
+

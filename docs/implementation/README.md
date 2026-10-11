@@ -68,3 +68,5 @@ M2 ─→ M4 lensing                                                        │
 | M4 | 完成 | lensing checkbox；E4 記錄彎折弱 | — |
 | M-S3 | 完成 | unity4.png 矩陣 | guidance/hforce 敗=E3 開放項 |
 | M5 | 完成 | duel checkbox＋expr slot＋EXPERIMENTS.md | parser 白名單 6 tests |
+| M-PERF/3D/SWAP | 完成 | g1/g3/h1/i1 截圖；10/10 unit | 見 04 三批＋E10-E12 |
+| M-NATIVE | 完成 | pol-native(minifb 視窗)／pol-term(Win32 console+VT)／frames(PNG 序列) 三 binary 編譯過；f020.png 驗證 | 零瀏覽器 runtime |
