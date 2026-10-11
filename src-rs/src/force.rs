@@ -10,6 +10,7 @@ pub const LAW_COUL: u8 = 2;
 pub const LAW_BOUND: u8 = 3;
 pub const LAW_VORTEX: u8 = 4;
 pub const LAW_CUSTOM: u8 = 5;
+pub const LAW_QP: u8 = 6;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]

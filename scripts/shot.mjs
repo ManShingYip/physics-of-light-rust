@@ -1,4 +1,4 @@
-import { chromium } from 'playwright-core'
+﻿import { chromium } from 'playwright-core'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -30,8 +30,9 @@ if (scene !== '' && scene !== 'none') {
 await page.waitForTimeout(waitMs)
 if (js !== '' && js !== 'none') {
   await page.evaluate(js)
-  await page.waitForTimeout(4000)
+  await page.waitForTimeout(Number(process.env.SHOT_POST ?? 4000))
 }
 await page.screenshot({ path: out })
 await browser.close()
 console.log('shot saved', out)
+

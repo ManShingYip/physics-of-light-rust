@@ -66,6 +66,14 @@ pub struct WaveEngine {
     rays: Vec<force::Particle>,
     rays_on: bool,
     projs: Vec<f32>,
+    disp_on: bool,
+    chr_re: Vec<f32>,
+    chr_im: Vec<f32>,
+    chb_re: Vec<f32>,
+    chb_im: Vec<f32>,
+    sol_r: solver::Solver,
+    sol_b: solver::Solver,
+    disp_rgb: Vec<f32>,
     re3: Vec<f32>,
     im3: Vec<f32>,
     pre3: Vec<f32>,
@@ -77,6 +85,7 @@ pub struct WaveEngine {
     raster: Vec<u8>,
     cam: [f32; 5],
     splats: Vec<f32>,
+    batch: bool,
 }
 
 struct DimFields {
@@ -195,6 +204,14 @@ impl WaveEngine {
             rays: Vec::new(),
             rays_on: false,
             projs: vec![0.0; 96 * 96 * 3],
+            disp_on: false,
+            chr_re: vec![0.0; 9216],
+            chr_im: vec![0.0; 9216],
+            chb_re: vec![0.0; 9216],
+            chb_im: vec![0.0; 9216],
+            sol_r: solver::Solver::new(),
+            sol_b: solver::Solver::new(),
+            disp_rgb: vec![0.0; 96 * 96 * 3],
             re3: vec![0.0; 32768],
             im3: vec![0.0; 32768],
             pre3: vec![0.0; 32768],
@@ -206,6 +223,7 @@ impl WaveEngine {
             raster: vec![0u8; 192 * 192 * 4],
             cam: [0.7, 0.5, 1.6, 0.0, 0.0],
             splats: Vec::new(),
+            batch: false,
         };
         e.solver.pre_re = e.real.clone();
         e.solver.pre_im = e.imag.clone();
@@ -240,6 +258,28 @@ impl WaveEngine {
         let h = self.height as usize;
         for _ in 0..2 {
             solver::wave_step(&mut self.real, &mut self.imag, &mut self.solver, &n, &mask, w, h, omega);
+            if self.disp_on {
+                let mut nr = n.clone();
+                let mut nb = n.clone();
+                for v in nr.iter_mut() {
+                    *v = 1.0 + (*v - 1.0) * 0.75;
+                }
+                for v in nb.iter_mut() {
+                    *v = 1.0 + (*v - 1.0) * 1.3;
+                }
+                solver::wave_step(&mut self.chr_re, &mut self.chr_im, &mut self.sol_r, &nr, &mask, w, h, omega);
+                solver::wave_step(&mut self.chb_re, &mut self.chb_im, &mut self.sol_b, &nb, &mask, w, h, omega);
+            }
+        }
+        if self.disp_on && self.tick % 3 == 0 {
+            for i in 0..w * h {
+                let rr = self.chr_re[i] * self.chr_re[i] + self.chr_im[i] * self.chr_im[i];
+                let gg = self.real[i] * self.real[i] + self.imag[i] * self.imag[i];
+                let bb = self.chb_re[i] * self.chb_re[i] + self.chb_im[i] * self.chb_im[i];
+                self.disp_rgb[i * 3] = rr / (rr + 0.85) * 1.5;
+                self.disp_rgb[i * 3 + 1] = gg / (gg + 0.85) * 1.5;
+                self.disp_rgb[i * 3 + 2] = bb / (bb + 0.85) * 1.5;
+            }
         }
         let shapes: [&[usize]; 4] = [&[128], &[64, 64], &[24, 24, 24], &[12, 12, 12, 12]];
         for di in 0..4 {
@@ -285,12 +325,21 @@ impl WaveEngine {
                 let ix = ((p.x * w as f32) as usize).min(w - 1);
                 let iy = ((p.y * h as f32) as usize).min(h - 1);
                 let g = grad2(&self.real, &self.imag, w, h, ix, iy);
-                let mg = maskg2(&mask, ix, iy);
+                let mg = maskg2(&mask, (ix * 48) / w, (iy * 48) / h);
                 ([g[0], g[1], 0.0], [mg[0], mg[1], 0.0])
             };
             let grad = [grad[0] * 0.006, grad[1] * 0.006, grad[2] * 0.006];
             let maskg = [maskg[0] * 0.004, maskg[1] * 0.004, maskg[2] * 0.004];
-            let (f, dom) = force::net_force([p.x, p.y, p.z], grad, maskg, &sources, &reg, cm, prog.as_deref());
+            let (mut f, dom) = force::net_force([p.x, p.y, p.z], grad, maskg, &sources, &reg, cm, prog.as_deref());
+            for si in 0..4 {
+                if reg.on[si] && reg.slots[si] == force::LAW_QP {
+                    let ix2 = ((p.x * w as f32) as usize).min(w - 1);
+                    let iy2 = ((p.y * h as f32) as usize).min(h - 1);
+                    let qv = qp_force(&self.real, &self.imag, w, h, ix2, iy2);
+                    f[0] += reg.w[si] * qv[0] * 0.0008;
+                    f[1] += reg.w[si] * qv[1] * 0.0008;
+                }
+            }
             if reg.on[0] && reg.slots.contains(&force::LAW_GUID) {
                 let gl = (grad[0] * grad[0] + grad[1] * grad[1] + grad[2] * grad[2]).sqrt();
                 if gl > 1e-9 {
@@ -312,7 +361,7 @@ impl WaveEngine {
             self.trails.remove(0);
         }
         self.particles.retain(|p| p.alive);
-        if self.tick % 6 == 0 {
+        if self.tick % 6 == 0 && !self.batch {
             self.compute_force_grid();
         }
     }
@@ -466,6 +515,28 @@ impl WaveEngine {
 
     pub fn set_lensing(&mut self, on: bool) {
         self.lensing = on;
+    }
+
+    pub fn set_disp(&mut self, on: bool) {
+        self.disp_on = on;
+        self.chr_re.fill(0.0);
+        self.chr_im.fill(0.0);
+        self.chb_re.fill(0.0);
+        self.chb_im.fill(0.0);
+        self.sol_r = solver::Solver::new();
+        self.sol_b = solver::Solver::new();
+    }
+
+    pub fn disp_ptr(&self) -> *const f32 {
+        self.disp_rgb.as_ptr()
+    }
+
+    pub fn disp_len(&self) -> u32 {
+        self.disp_rgb.len() as u32
+    }
+
+    pub fn set_batch(&mut self, on: bool) {
+        self.batch = on;
     }
 
     pub fn set_rays(&mut self, on: bool) {
@@ -731,12 +802,13 @@ impl WaveEngine {
     }
 
     fn unity_cell(&self, env: u32, formula: usize, steps: u32) -> [f32; HIST_BINS] {
-        let mut e = WaveEngine::new(self.width, self.height);
+        let mut e = WaveEngine::new(64, 64);
+        e.set_batch(true);
         e.set_scene(env);
         for _ in 0..steps / 2 {
             e.step(0.016);
         }
-        let obs = 0.75f32;
+        let obs = 0.5f32;
         match formula {
             0 => {
                 e.reg = force::Registry { w: [0.0; 4], on: [false; 4], slots: [0,1,2,3] };
@@ -1390,6 +1462,28 @@ impl WaveEngine {
     }
 }
 
+fn qp_force(re: &[f32], im: &[f32], w: usize, h: usize, x: usize, y: usize) -> [f32; 2] {
+    let q = |xx: usize, yy: usize| -> f32 {
+        let i = yy * w + xx;
+        let r = (re[i] * re[i] + im[i] * im[i] + 1e-8).sqrt();
+        let xm = xx.saturating_sub(1);
+        let xp = (xx + 1).min(w - 1);
+        let ym = yy.saturating_sub(1);
+        let yp = (yy + 1).min(h - 1);
+        let rr = |a: usize, b: usize| (re[b * w + a] * re[b * w + a] + im[b * w + a] * im[b * w + a] + 1e-8).sqrt();
+        let lap = rr(xp, yy) + rr(xm, yy) + rr(xx, yp) + rr(xx, ym) - 4.0 * r;
+        -lap / (r + 1e-6)
+    };
+    let xm = x.saturating_sub(1);
+    let xp = (x + 1).min(w - 1);
+    let ym = y.saturating_sub(1);
+    let yp = (y + 1).min(h - 1);
+    [
+        (q(xp, y) - q(xm, y)) * 0.5,
+        (q(x, yp) - q(x, ym)) * 0.5,
+    ]
+}
+
 fn grad2(re: &[f32], im: &[f32], w: usize, h: usize, x: usize, y: usize) -> [f32; 2] {
     let i = y * w + x;
     let xm = x.saturating_sub(1);
@@ -1411,6 +1505,8 @@ fn grad2(re: &[f32], im: &[f32], w: usize, h: usize, x: usize, y: usize) -> [f32
 }
 
 fn maskg2(mask: &[f32], x: usize, y: usize) -> [f32; 2] {
+    let x = x.min(47);
+    let y = y.min(47);
     let xm = x.saturating_sub(1);
     let xp = (x + 1).min(47);
     let ym = y.saturating_sub(1);
@@ -1532,7 +1628,21 @@ mod tests {
         e.sample_commits(0.75, 100, 3);
         assert!(e.commits.is_empty());
     }
+
+    #[test]
+    fn qp_zero_on_uniform_density() {
+        let re = vec![1.0f32; 64];
+        let im = vec![0.0f32; 64];
+        let f = qp_force(&re, &im, 8, 8, 4, 4);
+        assert!(f[0].abs() < 1e-4 && f[1].abs() < 1e-4);
+    }
 }
+
+
+
+
+
+
 
 
 

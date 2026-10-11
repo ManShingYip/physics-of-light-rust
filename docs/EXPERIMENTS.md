@@ -29,6 +29,15 @@
 ## E9 — 2026-10-11 Bohm 全速度 steering 再試（E3 跟進）
 公式：guidance 全速度覆蓋（無其他力時 mixw=1）｜签名：unity scene5 guidance 仍 fail｜結論：toy Bohm 缺量子勢／相位渦旋處理，**維持開放**｜截圖：unity5.png
 
+## E13 — 2026-10-12 邊界=吸收修正（M-SCI1）
+變更：unity 粒子跑 boundary 改 kill_in_mask（吸收），guidance 全強度｜结果：**guidance 轉 PASS double-slit**（wave/born/guidance 三表述統一）｜新敗績：guidance@shadow fail（Bohm 流填幾何影）、hforce 全敗（grav w=0.3 污染條紋＝矩陣作污染偵測器）｜截圖：k2.png
+
+## E14 — 2026-10-12 maskg2 索引災難（工程）
+症狀：v4 batch 後 frame ~30 wasm trap（unreachable）｜因：net_force 重構時 maskg2 收 field-grid 索引（96/64）但 mask 係 48²｜修：映射 (i*48)/w＋clamp｜教訓：**多網格索引映射入契約審查**；host example unity_dbg 作回歸工具
+
+## E15 — 2026-10-12 色散三通道（M-SCI2）
+環境：prism＋disp on（R/G/B n 乘 0.75/1/1.3）｜观察：楔區三色 beating＋出射分離；sig shift=-0.196（偏折可測）｜結論：色散 PASS（顯示）；clean rainbow fan 仍 pending（傍軸彎折弱,E4 延續）｜截圖：k3.png
+
 ## E10 — 2026-10-11 無 GPU fallback 驗證（P3）
 環境：?nogpu=1（Rust CPU 光柵化＋putImageData）｜观察：完整雙縫干涉畫面、commits 累積｜結論：PASS——最弱設備仍有全畫面｜截圖：g1.png
 

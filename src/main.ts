@@ -106,6 +106,7 @@ async function main(): Promise<void> {
     proj: getEl<HTMLInputElement>('proj'),
     pol: getEl<HTMLInputElement>('pol'),
     rays: getEl<HTMLInputElement>('rays'),
+    disp: getEl<HTMLInputElement>('disp'),
     dim3: getEl<HTMLInputElement>('dim3'),
     polA: getEl<HTMLInputElement>('polA'),
     polB: getEl<HTMLInputElement>('polB'),
@@ -207,6 +208,7 @@ async function main(): Promise<void> {
   let uploadField3: () => void = () => {}
   let uploadSplats: () => void = () => {}
   let uploadProjs: () => void = () => {}
+  let uploadDisp: () => void = () => {}
 
   function startGPU(): void {
     gpuOn = true
@@ -255,6 +257,7 @@ async function main(): Promise<void> {
       bufs.force = mkBuf(48 * 48 * 10 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
       bufs.dims = mkBuf(77568 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
       bufs.proj = mkBuf(96 * 96 * 3 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
+      bufs.disp = mkBuf(96 * 96 * 3 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
       bufs.splat = mkBuf(SPLAT_CAP * 16, BUFFER_STORAGE | BUFFER_COPY_DST)
 
       const module = dev.createShaderModule({ code: wgslSrc }) as unknown as {
@@ -303,6 +306,7 @@ async function main(): Promise<void> {
           { binding: 7, resource: { buffer: bufs.force } },
           { binding: 8, resource: { buffer: bufs.dims } },
           { binding: 9, resource: { buffer: bufs.proj } },
+          { binding: 10, resource: { buffer: bufs.disp } },
         ],
       }) as unknown
       bindGroup2 = dev.createBindGroup({
@@ -362,6 +366,9 @@ async function main(): Promise<void> {
       uploadSplats = (): void => {
         dev.queue.writeBuffer(bufs.splat, 0, viewF32(engine.splats_ptr() as unknown as number, Number(engine.splats_len()) * 4))
       }
+      uploadDisp = (): void => {
+        dev.queue.writeBuffer(bufs.disp, 0, viewF32(engine.disp_ptr() as unknown as number, Number(engine.disp_len())))
+      }
       uploadProjs = (): void => {
         dev.queue.writeBuffer(bufs.proj, 0, viewF32(engine.projs_ptr() as unknown as number, Number(engine.projs_len())))
       }
@@ -412,6 +419,7 @@ async function main(): Promise<void> {
         if (el.dim3.checked) uploadField3()
         if (frames % 6 === 0) uploadForce()
         if (el.dims.checked && frames % 3 === 0) uploadDims()
+    if (el.disp.checked && frames % 3 === 0) uploadDisp()
         const enc = dev.createCommandEncoder()
         const view = context.getCurrentTexture().createView()
         const pass = enc.beginRenderPass({
@@ -611,7 +619,7 @@ async function main(): Promise<void> {
   const runUnity = (): void => {
     el.unityBox.textContent = 'running batch (sync)...'
     window.setTimeout(() => {
-      const json = engine.run_unity(400) as unknown as string
+      const json = engine.run_unity(240) as unknown as string
       const rows = JSON.parse(json) as { env: number; cells: { f: string; pass: boolean }[] }[]
       const names = ['corpuscular', 'wave', 'born', 'guidance', 'hforce']
       let html = '<table style="color:#ddd;font-size:11px"><tr><td>env\\f</td>'
@@ -682,6 +690,10 @@ async function main(): Promise<void> {
     el.k.addEventListener('change', rebuildField)
     el.dim3.addEventListener('change', rebuildField)
     el.rays.addEventListener('change', () => engine.set_rays(el.rays.checked))
+  el.disp.addEventListener('change', () => {
+    engine.set_disp(el.disp.checked)
+    if (el.disp.checked) uploadDisp()
+  })
     for (let i = 0; i < 4; i = i + 1) {
       fOn[i].addEventListener('change', syncForces)
       fW[i].addEventListener('change', syncForces)
@@ -810,5 +822,8 @@ main().catch((e: unknown) => {
   console.error(e)
   document.getElementById('status')!.textContent = 'error'
 })
+
+
+
 
 

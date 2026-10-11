@@ -51,6 +51,7 @@ struct VsOut {
 @group(0) @binding(7) var<storage, read> force_grid: array<f32>;
 @group(0) @binding(8) var<storage, read> dims_buf: array<f32>;
 @group(0) @binding(9) var<storage, read> proj_buf: array<f32>;
+@group(0) @binding(10) var<storage, read> disp_rgb: array<f32>;
 
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> VsOut {
@@ -156,6 +157,7 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     let proj_on = (params.flags & 8u) != 0u;
     let pol_on = (params.flags & 16u) != 0u;
     let dim3_on = (params.flags & 32u) != 0u;
+    let disp_on = (params.flags & 256u) != 0u;
     let r1 = (params.flags & 64u) != 0u;
     let r2 = (params.flags & 128u) != 0u;
 
@@ -242,6 +244,11 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
         let psi = sample_field(uv);
         let rho = psi.x * psi.x + psi.y * psi.y;
         var ghost_color = phase_to_rgb(atan2(psi.y, psi.x), rho);
+        if (disp_on) {
+            let di = clamp(u32(uv.y * 96.0), 0u, 95u) * 96u + clamp(u32(uv.x * 96.0), 0u, 95u);
+            let dc = vec3<f32>(disp_rgb[di * 3u], disp_rgb[di * 3u + 1u], disp_rgb[di * 3u + 2u]);
+            ghost_color = dc;
+        }
         let mi = clamp(u32(uv.y * 48.0), 0u, 47u) * 48u + clamp(u32(uv.x * 48.0), 0u, 47u);
         let m = mask_grid[mi];
         ghost_color = ghost_color * (1.0 - m * 0.95);
