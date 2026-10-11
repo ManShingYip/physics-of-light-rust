@@ -99,3 +99,16 @@ sig shift=-0.029 corr=0.95｜結論：改善 PASS；textbook fan 仍開放（需
 
 ## E28 — 2026-10-12 P5 SIMD laplacian
 變更：wave_step 行方向 laplacian 改 wasm32 f32x4（edge scalar）｜驗證：cargo test 11/11＋wasm build＋幀率無回歸｜紀錄
+
+## E29 — 2026-10-12 exact-phase Bohm 積分器（強攻八）
+變更：bilinear ∇S、guid-only 時 exact assign＋4 substep、unity 粒子與場時間一致推進｜
+结果：guidance@shadow/prism 仍 fail、@doubleslit 亦 fail（born-spawn 下）｜
+根因分析：離散 leapfrog 嘅 continuity 與離散 ∇S 唔結構相容｜**未來方向：discrete flux J/ρ（v=J/ρ 由 leapfrog 同一 stencil 導出）**｜開放
+
+## E30 — 2026-10-12 per-channel fan（強攻九）
+變更：disp buffer 6-comp（rho+phase ×3）、split-band 單色強度顯示｜观察：三 band 單色條紋清晰、
+楔區三色橫向位移可見｜結論：PASS（per-channel 顯示）；clean fan 美學仍受駐波條紋限制｜
+開放：入射/反射分離（time-gating）｜截圖：s4.png
+
+## E31 — 2026-10-12 glue 定量閾值
+變更：selftest 加 glue_obstruction_localized（牆 edge-ring 均值 > 1.5× fan 均值）｜结果：9/9 PASS｜截圖：selftest console

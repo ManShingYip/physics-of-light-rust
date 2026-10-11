@@ -212,7 +212,7 @@ impl WaveEngine {
             chb_im: vec![0.0; 9216],
             sol_r: solver::Solver::new(),
             sol_b: solver::Solver::new(),
-            disp_rgb: vec![0.0; 96 * 96 * 3],
+            disp_rgb: vec![0.0; n * 6],
             re3: vec![0.0; 32768],
             im3: vec![0.0; 32768],
             pre3: vec![0.0; 32768],
@@ -325,18 +325,23 @@ impl WaveEngine {
             }
         }
         let cscale = 0.004 / ((gsum / (gc as f32).max(1.0)) + 1e-9);
+        let guid_only = reg.on[0] && reg.slots.contains(&force::LAW_GUID) && !reg.on[1] && !reg.on[2] && !reg.on[3];
+        let subs: u32 = if guid_only { 4 } else { 2 };
         for p in self.particles.iter_mut() {
             if !p.alive {
                 continue;
             }
             let mut dom = 0u32;
-            for _sub in 0..2 {
+            for _sub in 0..subs {
                 let (grad, maskg) = if self.dim3 {
                     let r = self.res3;
                     let ix = ((p.x * r as f32) as usize).min(r - 1);
                     let iy = ((p.y * r as f32) as usize).min(r - 1);
                     let iz = ((p.z * r as f32) as usize).min(r - 1);
                     (grad3(&self.re3, &self.im3, r, ix, iy, iz), maskg3(&self.scene3.mask, r, ix, iy, iz))
+                } else if guid_only {
+                    let g = grad2_bil(&self.real, &self.imag, w, h, p.x, p.y);
+                    ([g[0], g[1], 0.0], [0.0, 0.0, 0.0])
                 } else {
                     let ix = ((p.x * w as f32) as usize).min(w - 1);
                     let iy = ((p.y * h as f32) as usize).min(h - 1);
@@ -360,14 +365,20 @@ impl WaveEngine {
                 if reg.on[0] && reg.slots.contains(&force::LAW_GUID) {
                     let gl = (grad[0] * grad[0] + grad[1] * grad[1] + grad[2] * grad[2]).sqrt();
                     if gl > 1e-9 {
-                        let others = reg.on[1] || reg.on[2] || reg.on[3];
-                        let mixw = if others { 0.2 } else { 1.0 };
-                        p.vx = p.vx * (1.0 - mixw) + grad[0] * cscale * mixw;
-                        p.vy = p.vy * (1.0 - mixw) + grad[1] * cscale * mixw;
-                        p.vz = p.vz * (1.0 - mixw) + grad[2] * cscale * mixw;
+                        if guid_only {
+                            // exact-phase Bohm: v := grad-S * c (no blend, no clamp bias)
+                            p.vx = grad[0] * cscale;
+                            p.vy = grad[1] * cscale;
+                            p.vz = grad[2] * cscale;
+                        } else {
+                            let mixw = 0.2;
+                            p.vx = p.vx * (1.0 - mixw) + grad[0] * cscale * mixw;
+                            p.vy = p.vy * (1.0 - mixw) + grad[1] * cscale * mixw;
+                            p.vz = p.vz * (1.0 - mixw) + grad[2] * cscale * mixw;
+                        }
                     }
                 }
-                force::integrate(p, f, dt * 0.5);
+                force::integrate(p, f, dt / subs as f32);
             }
             p.hue = dom;
             if self.tick % 2 == 0 && p.alive {
@@ -1043,6 +1054,41 @@ impl WaveEngine {
         push(&mut out, "speed_clamped", (p.vx * p.vx + p.vy * p.vy).sqrt() <= force::V_MAX + 1e-6, &mut first);
         push(&mut out, "expr_parser_rejects_bad", expr::parse("1+;(").is_err(), &mut first);
         push(&mut out, "expr_parser_ok", expr::parse("sin(d)*2+1/d").is_ok(), &mut first);
+        let mut gl = WaveEngine::new(96, 96);
+        gl.set_scene(5);
+        for _ in 0..400 {
+            gl.step(0.016);
+        }
+        gl.compute_projs();
+        let n96 = 96 * 96;
+        let glue = gl.projs[3 * n96..4 * n96].to_vec();
+        let mut wm = 0.0f32;
+        let mut wc = 0u32;
+        let mut om = 0.0f32;
+        let mut oc = 0u32;
+        for y in 0..96 {
+            for x in 0..96 {
+                let mx = x / 2;
+                let my = y / 2;
+                let mv = gl.scene.mask[my * 48 + mx];
+                let ring = mv < 0.5
+                    && ((mx > 0 && gl.scene.mask[my * 48 + mx - 1] > 0.5)
+                        || (mx < 47 && gl.scene.mask[my * 48 + mx + 1] > 0.5)
+                        || (my > 0 && gl.scene.mask[(my - 1) * 48 + mx] > 0.5)
+                        || (my < 47 && gl.scene.mask[(my + 1) * 48 + mx] > 0.5));
+                let g = glue[y * 96 + x];
+                if ring {
+                    wm += g;
+                    wc += 1;
+                } else if x > 48 {
+                    om += g;
+                    oc += 1;
+                }
+            }
+        }
+        let wr = wm / (wc as f32).max(1.0);
+        let or = om / (oc as f32).max(1.0);
+        push(&mut out, "glue_obstruction_localized", wr > 1.5 * or, &mut first);
         out.push(']');
         out
     }
@@ -1620,6 +1666,23 @@ fn qp_force(re: &[f32], im: &[f32], w: usize, h: usize, x: usize, y: usize) -> [
     ]
 }
 
+fn grad2_bil(re: &[f32], im: &[f32], w: usize, h: usize, fx: f32, fy: f32) -> [f32; 2] {
+    let x0 = (fx * w as f32 - 0.5).clamp(0.0, (w - 2) as f32);
+    let y0 = (fy * h as f32 - 0.5).clamp(0.0, (h - 2) as f32);
+    let ix = x0 as usize;
+    let iy = y0 as usize;
+    let tx = x0 - ix as f32;
+    let ty = y0 - iy as f32;
+    let g00 = grad2(re, im, w, h, ix, iy);
+    let g10 = grad2(re, im, w, h, ix + 1, iy);
+    let g01 = grad2(re, im, w, h, ix, iy + 1);
+    let g11 = grad2(re, im, w, h, ix + 1, iy + 1);
+    [
+        (g00[0] * (1.0 - tx) + g10[0] * tx) * (1.0 - ty) + (g01[0] * (1.0 - tx) + g11[0] * tx) * ty,
+        (g00[1] * (1.0 - tx) + g10[1] * tx) * (1.0 - ty) + (g01[1] * (1.0 - tx) + g11[1] * tx) * ty,
+    ]
+}
+
 fn grad2(re: &[f32], im: &[f32], w: usize, h: usize, x: usize, y: usize) -> [f32; 2] {
     let i = y * w + x;
     let xm = x.saturating_sub(1);
@@ -1832,6 +1895,8 @@ impl WaveEngine {
         self.brush.fill(0.0);
     }
 }
+
+
 
 
 

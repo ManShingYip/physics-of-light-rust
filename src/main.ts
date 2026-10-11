@@ -172,6 +172,8 @@ async function main(): Promise<void> {
     (el.proj.checked ? 8 : 0) |
     (el.pol.checked ? 16 : 0) |
     (el.dim3.checked ? 32 : 0) |
+    (el.disp.checked ? 256 : 0) |
+    (el.glue.checked ? 512 : 0) |
     renderMode()
 
   const syncForces = (): void => {
@@ -847,6 +849,7 @@ main().catch((e: unknown) => {
   console.error(e)
   document.getElementById('status')!.textContent = 'error'
 })
+
 
 
 

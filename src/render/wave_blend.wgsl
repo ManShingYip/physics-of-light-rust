@@ -247,9 +247,18 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
         let rho = psi.x * psi.x + psi.y * psi.y;
         var ghost_color = phase_to_rgb(atan2(psi.y, psi.x), rho);
         if (disp_on) {
-            let di = clamp(u32(uv.y * f32(params.field_h)), 0u, params.field_h - 1u) * params.field_w + clamp(u32(uv.x * f32(params.field_w)), 0u, params.field_w - 1u);
-            let dc = vec3<f32>(disp_rgb[di * 3u], disp_rgb[di * 3u + 1u], disp_rgb[di * 3u + 2u]);
-            ghost_color = dc;
+            let band = clamp(u32(uv.y * 3.0), 0u, 2u);
+            let ly = fract(uv.y * 3.0);
+            let di = clamp(u32(ly * f32(params.field_h)), 0u, params.field_h - 1u) * params.field_w + clamp(u32(uv.x * f32(params.field_w)), 0u, params.field_w - 1u);
+            let rho = disp_rgb[di * 6u + band * 2u];
+            let v = rho / (rho + 0.85) * 1.6;
+            var tint = vec3<f32>(1.0, 0.25, 0.25);
+            if (band == 1u) {
+                tint = vec3<f32>(0.3, 1.0, 0.4);
+            } else if (band == 2u) {
+                tint = vec3<f32>(0.3, 0.5, 1.0);
+            }
+            ghost_color = tint * v * select(1.0, 0.0, fract(uv.y * 3.0) < 0.01);
         }
         let mi = clamp(u32(uv.y * 48.0), 0u, 47u) * 48u + clamp(u32(uv.x * 48.0), 0u, 47u);
         let m = mask_grid[mi];
