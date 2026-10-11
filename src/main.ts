@@ -77,6 +77,7 @@ async function main(): Promise<void> {
   const barrierInput = getEl<HTMLInputElement>('barrierX')
   const sepInput = getEl<HTMLInputElement>('slitSep')
   const kInput = getEl<HTMLInputElement>('waveK')
+  const sceneSel = getEl<HTMLSelectElement>('sceneSel')
   const sweepInput = getEl<HTMLInputElement>('sweep')
   const speedInput = getEl<HTMLInputElement>('sweepSpeed')
   const accumInput = getEl<HTMLInputElement>('accum')
@@ -90,6 +91,7 @@ async function main(): Promise<void> {
   const currentBarrier = (): number => Number.parseFloat(barrierInput.value)
   const currentSep = (): number => Number.parseFloat(sepInput.value)
   const currentK = (): number => Number.parseFloat(kInput.value)
+  const currentScene = (): number => Number.parseInt(sceneSel.value, 10)
   const slitYs = (): [number, number] => {
     const s = currentSep()
     return [0.5 - s / 2, 0.5 + s / 2]
@@ -153,6 +155,15 @@ async function main(): Promise<void> {
     size: FIELD_BYTES,
     usage: BUFFER_STORAGE | BUFFER_COPY_DST,
   }) as unknown
+  const GRID_BYTES = 48 * 48 * 4
+  const nBuf = device.createBuffer({
+    size: GRID_BYTES,
+    usage: BUFFER_STORAGE | BUFFER_COPY_DST,
+  }) as unknown
+  const mBuf = device.createBuffer({
+    size: GRID_BYTES,
+    usage: BUFFER_STORAGE | BUFFER_COPY_DST,
+  }) as unknown
   const module = device.createShaderModule({ code: wgslSrc }) as unknown as {
     getCompilationInfo(): Promise<{
       messages: { type: string; message: string; lineNum: number; linePos: number }[]
@@ -181,6 +192,8 @@ async function main(): Promise<void> {
       { binding: 1, resource: { buffer: commitBuf } },
       { binding: 2, resource: { buffer: realBuf } },
       { binding: 3, resource: { buffer: imagBuf } },
+      { binding: 4, resource: { buffer: nBuf } },
+      { binding: 5, resource: { buffer: mBuf } },
     ],
   }) as unknown
 
@@ -222,11 +235,24 @@ async function main(): Promise<void> {
     }
   }
 
+  const uploadGrids = (): void => {
+    const n = readF32(engine.n_ptr() as unknown as number, Number(engine.n_len()))
+    const m = readF32(engine.mask_ptr() as unknown as number, Number(engine.mask_len()))
+    if (n.length === 2304) {
+      device.queue.writeBuffer(nBuf, 0, n)
+    }
+    if (m.length === 2304) {
+      device.queue.writeBuffer(mBuf, 0, m)
+    }
+  }
+
   const rebuildField = (): void => {
-    const ys = slitYs()
-    engine.init_double_slit(currentBarrier(), ys[0], ys[1], currentK())
+    engine.set_barrier(currentBarrier())
+    engine.set_sep(currentSep())
+    engine.set_k(currentK())
+    engine.set_scene(currentScene())
     uploadField()
-    engine.clear_commits()
+    uploadGrids()
     engine.sample_commits(currentObsX(), 12, seed)
     seed = seed + 1n
     writeUniform(currentObsX())
@@ -246,6 +272,7 @@ async function main(): Promise<void> {
   barrierInput.addEventListener('change', rebuildField)
   sepInput.addEventListener('change', rebuildField)
   kInput.addEventListener('change', rebuildField)
+  sceneSel.addEventListener('change', rebuildField)
 
   let frames = 0
   let sweepT = 0
@@ -266,6 +293,7 @@ async function main(): Promise<void> {
       uploadCommits()
     }
     writeUniform(obsX)
+    uploadField()
     const enc = device.createCommandEncoder()
     const view = context.getCurrentTexture().createView()
     const pass = enc.beginRenderPass({

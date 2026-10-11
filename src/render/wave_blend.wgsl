@@ -32,6 +32,8 @@ struct VsOut {
 @group(0) @binding(1) var<storage, read> commits: array<CommitEvent>;
 @group(0) @binding(2) var<storage, read> field_real: array<f32>;
 @group(0) @binding(3) var<storage, read> field_imag: array<f32>;
+@group(0) @binding(4) var<storage, read> n_grid: array<f32>;
+@group(0) @binding(5) var<storage, read> mask_grid: array<f32>;
 
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> VsOut {
@@ -81,14 +83,10 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     let phase = atan2(psi.y, psi.x);
     var ghost_color = phase_to_rgb(phase, rho);
 
-    // Double-slit wall: dark band except at the two slit gaps.
-    let wall_half = 0.004;
-    let slit_half = 0.025;
-    let wall_band = 1.0 - step(wall_half, abs(uv.x - params.barrier_x));
-    let open1 = 1.0 - step(slit_half, abs(uv.y - params.slit_y1));
-    let open2 = 1.0 - step(slit_half, abs(uv.y - params.slit_y2));
-    let wall = wall_band * (1.0 - clamp(open1 + open2, 0.0, 1.0));
-    ghost_color = ghost_color * (1.0 - wall * 0.95);
+    // Scene geometry now comes from mask_grid (contract v2), not uniforms.
+    let mi = clamp(u32(uv.y * 48.0), 0u, 47u) * 48u + clamp(u32(uv.x * 48.0), 0u, 47u);
+    let m = mask_grid[mi];
+    ghost_color = ghost_color * (1.0 - m * 0.95);
 
     var dot_intensity = 0.0;
     for (var i = 0u; i < params.num_commits; i = i + 1u) {

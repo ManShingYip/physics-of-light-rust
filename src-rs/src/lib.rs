@@ -1,5 +1,8 @@
 ﻿use wasm_bindgen::prelude::*;
 
+mod scene;
+mod solver;
+
 #[wasm_bindgen]
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
@@ -45,6 +48,12 @@ pub struct WaveEngine {
     real: Vec<f32>,
     imag: Vec<f32>,
     commits: Vec<Commit>,
+    scene: scene::Scene,
+    solver: solver::Solver,
+    scene_id: u32,
+    p_barrier: f32,
+    p_sep: f32,
+    p_k: f32,
 }
 
 #[wasm_bindgen]
@@ -61,14 +70,80 @@ impl WaveEngine {
             real: vec![0.0; n],
             imag: vec![0.0; n],
             commits: Vec::new(),
+            scene: scene::preset(5, 0.3, 0.2, 60.0),
+            solver: solver::Solver::new(),
+            scene_id: 5,
+            p_barrier: 0.3,
+            p_sep: 0.2,
+            p_k: 60.0,
         };
-        e.init_plane();
+        e.solver.pre_re = e.real.clone();
+        e.solver.pre_im = e.imag.clone();
         e
     }
 
-    /// Advance backend clock. Field evolution goes here later.
+    /// Advance backend clock and evolve the scene field (2 substeps).
     pub fn step(&mut self, dt: f32) {
         self.time += dt;
+        let omega = 0.10 + self.p_k * 0.0016;
+        let n = self.scene.n.clone();
+        let mask = self.scene.mask.clone();
+        let w = self.width as usize;
+        let h = self.height as usize;
+        for _ in 0..2 {
+            solver::wave_step(&mut self.real, &mut self.imag, &mut self.solver, &n, &mask, w, h, omega);
+        }
+    }
+
+    pub fn set_scene(&mut self, id: u32) {
+        self.scene_id = id;
+        self.rebuild_scene();
+    }
+
+    pub fn scene_id(&self) -> u32 {
+        self.scene_id
+    }
+
+    pub fn set_barrier(&mut self, v: f32) {
+        self.p_barrier = v.clamp(0.05, 0.9);
+    }
+
+    pub fn set_sep(&mut self, v: f32) {
+        self.p_sep = v.clamp(0.05, 0.5);
+    }
+
+    pub fn set_k(&mut self, v: f32) {
+        self.p_k = v.clamp(20.0, 120.0);
+    }
+
+    fn rebuild_scene(&mut self) {
+        self.scene = scene::preset(self.scene_id, self.p_barrier, self.p_sep, self.p_k);
+        for v in self.real.iter_mut() {
+            *v = 0.0;
+        }
+        for v in self.imag.iter_mut() {
+            *v = 0.0;
+        }
+        self.solver = solver::Solver::new();
+        self.solver.pre_re = self.real.clone();
+        self.solver.pre_im = self.imag.clone();
+        self.commits.clear();
+    }
+
+    pub fn n_ptr(&self) -> *const f32 {
+        self.scene.n.as_ptr()
+    }
+
+    pub fn n_len(&self) -> u32 {
+        self.scene.n.len() as u32
+    }
+
+    pub fn mask_ptr(&self) -> *const f32 {
+        self.scene.mask.as_ptr()
+    }
+
+    pub fn mask_len(&self) -> u32 {
+        self.scene.mask.len() as u32
     }
 
     /// Plane-wave field (rho ~= envelope^2, never vacuum).
@@ -87,7 +162,8 @@ impl WaveEngine {
         self.commits.clear();
     }
 
-    /// Analytic double-slit field (Huygens): plane wave left of the wall,
+    /// DEPRECATED at M-S1 (kept until acceptance): analytic double-slit field.
+    /// Superseded by scene preset 5 + solver (S-SOLVER-WAVE).
     /// absorbing wall with two slits, two cylindrical waves interfering right.
     /// Positions in uv units (0..1), k = wavenumber.
     pub fn init_double_slit(&mut self, barrier_u: f32, y1: f32, y2: f32, k: f32) {
