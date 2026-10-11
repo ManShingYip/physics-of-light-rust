@@ -49,8 +49,9 @@ pub fn wave_step(
             let phi = omega * (n[gi] - 1.0);
             let cf = phi.cos();
             let sf = phi.sin();
-            let rr = nr * cf - ni * sf;
-            let ii = nr * sf + ni * cf;
+            // rotate by -phi: physical waves carry e^{-i ω n}, so n>1 adds phase lag
+            let rr = nr * cf + ni * sf;
+            let ii = -nr * sf + ni * cf;
             nr = rr;
             ni = ii;
             if mask[gi] > 0.5 {
@@ -73,7 +74,7 @@ pub fn wave_step(
     }
     let dr = 0.35f32;
     let cr = (omega * s.t).cos() * dr;
-    let ci = (omega * s.t).sin() * dr;
+    let ci = -(omega * s.t).sin() * dr;
     for y in 0..h {
         let i = y * w + 1;
         new_re[i] += cr;
