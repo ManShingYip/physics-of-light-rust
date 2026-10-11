@@ -1,58 +1,62 @@
-# 04 追溯矩陣（A+B 簽收頁）
+﻿# 04 è¿½æº¯çŸ©é™£ï¼ˆA+B ç°½æ”¶é ï¼‰
 
-每行五欄：公式/子系統 ↔ 代碼位 ↔ 測試 ↔ 畫面層 ↔ 契約行。
-`✓`=已簽收、`M#`=待里程碑簽收。缺欄=未完善，唔算 Done。
+æ¯è¡Œäº”æ¬„ï¼šå…¬å¼/å­ç³»çµ± â†” ä»£ç¢¼ä½ â†” æ¸¬è©¦ â†” ç•«é¢å±¤ â†” å¥‘ç´„è¡Œã€‚
+`âœ“`=å·²ç°½æ”¶ã€`M#`=å¾…é‡Œç¨‹ç¢‘ç°½æ”¶ã€‚ç¼ºæ¬„=æœªå®Œå–„ï¼Œå””ç®— Doneã€‚
 
-| 子系統 | 代碼位 | 測試 | 畫面層 | 契約(02) | 狀態 |
+| å­ç³»çµ± | ä»£ç¢¼ä½ | æ¸¬è©¦ | ç•«é¢å±¤ | å¥‘ç´„(02) | ç‹€æ…‹ |
 |---|---|---|---|---|---|
-| S-FIELD-INIT | lib.rs::init_double_slit | 牆體零值(M1) | L-ghost | field buffers | ✓（M-S1 退役→S-SOLVER-WAVE） |
-| S-SCENE | scene.rs(M-S1) | preset 往返 | L0 | n/mask_grid(v2) | M-S1 |
-| S-DIM | scene.rs(M-S2) | 尾跡斷言 D=3 | M-dims 四格 | 契約v3 多維場 | M-S2 |
-| S-POL | field.rs(M-S2) | Malus fit | 箭頭/色輪 | 契約v3 分量數 | M-S2 |
-| S-EXPLAIN | main.ts(M-S2) | 文字核對 | docent 側欄 | — | M-S2 |
-| S-GRID | grid.rs(M-S3) | 抽格重跑比對 | M-unity 資料源 | sig_cache 契約v3 | M-S3 |
-| S-UNITY | main.ts(M-S3) | 全綠列斷言 | 統一矩陣 | real_sig 表唯讀 | M-S3 |
-| S-SOLVER-WAVE | scene.rs/solver(M-S1) | CFL+能量守恆 | L-ghost | n/mask_grid(v2) | M-S1 |
-| S-SOLVER-RAY | solver(M-S1) | 焦散位置解析比對 | preset11 | n_grid(v2) | M-S1 |
-| S-SOLVER-PARTICLE | force.rs(M1) | 同 S-INTEGRATOR | L2 | trails | M1 |
-| S-OBS | wgsl::fs_main | 手動 | L-ghost | field buffers | ✓ |
-| S-CUT | wgsl::fs_main | 手動拖桿 | 前沿 | uniform | ✓ |
-| S-BLEND | wgsl::fs_main | 截圖 | 全畫面 | uniform | ✓ |
-| S-DOTS | wgsl::fs_main | 截圖 | L3 | commits | ✓ |
-| S-HIST | wgsl::fs_main | 截圖 | 右緣 | commits | ✓ |
-| S-SAMPLER | lib.rs::sample_commits | unit(M1) | L3 | commits | ✓ |
-| S-RNG | lib.rs::XorShift64 | unit(M1) | — | — | ✓ |
-| S-FORCE-GRAV | force.rs(M1) | 圓軌道(M1) | L0+L2 | force_grid(M2 前用解析) | M1 |
-| S-INTEGRATOR | force.rs(M1) | 能量漂移(M1) | L2 | trails | M1 |
-| S-FORCE-GUID | force.rs(M2) | 與解析∇phase比對 | L2 | force_grid | M2 |
-| S-FORCE-EM | force.rs(M2) | 對稱性 | L0+L2 | force_grid | M2 |
-| S-FORCE-BOUND | force.rs(M2) | 牆外零力 | L0 | force_grid | M2 |
-| S-COUPLING | force.rs(M2) | 全w=0⇒F=0 | K熱力圖 | force_grid | M2 |
-| S-DOMINANCE | force.rs(M2) | argmax 一致性 | 尾跡染色 | trails.hue | M2 |
-| S-SIGNATURE | lib.rs(M3) | 純函數斷言 | 除錯面板 | 新buffer(契約v2) | M3 |
-| S-LENSING | lib.rs(M4) | 彎曲方向符n=1+Φ | 條紋彎 | field buffers | M4 |
-| S-PROJ-K | lib.rs(M-proj) | FFT 往返誤差 | P2 | 新buffer(契約v2) | M-proj |
-| S-PROJ-W | lib.rs(M-proj) | 負值存在性 | P3+閃光 | 新buffer(契約v2) | M-proj |
-| S-PROJ-PATH | lib.rs(M-proj) | 密度歸一 | P4 | 新buffer(契約v2) | M-proj |
-| S-GLUE | lib.rs(M-proj) | 單面板還原必敗 | 膠合閃光 | 契約v2 | M-proj |
+| S-FIELD-INIT | lib.rs::init_double_slit | ç‰†é«”é›¶å€¼(M1) | L-ghost | field buffers | âœ“ï¼ˆM-S1 é€€å½¹â†’S-SOLVER-WAVEï¼‰ |
+| S-SCENE | scene.rs(M-S1) | preset å¾€è¿” | L0 | n/mask_grid(v2) | M-S1 |
+| S-DIM | scene.rs(M-S2) | å°¾è·¡æ–·è¨€ D=3 | M-dims å››æ ¼ | å¥‘ç´„v3 å¤šç¶­å ´ | M-S2 |
+| S-POL | field.rs(M-S2) | Malus fit | ç®­é ­/è‰²è¼ª | å¥‘ç´„v3 åˆ†é‡æ•¸ | M-S2 |
+| S-EXPLAIN | main.ts(M-S2) | æ–‡å­—æ ¸å° | docent å´æ¬„ | â€” | M-S2 |
+| S-GRID | grid.rs(M-S3) | æŠ½æ ¼é‡è·‘æ¯”å° | M-unity è³‡æ–™æº | sig_cache å¥‘ç´„v3 | M-S3 |
+| S-UNITY | main.ts(M-S3) | å…¨ç¶ åˆ—æ–·è¨€ | çµ±ä¸€çŸ©é™£ | real_sig è¡¨å”¯è®€ | M-S3 |
+| S-SOLVER-WAVE | scene.rs/solver(M-S1) | CFL+èƒ½é‡å®ˆæ† | L-ghost | n/mask_grid(v2) | M-S1 |
+| S-SOLVER-RAY | solver(M-S1) | ç„¦æ•£ä½ç½®è§£æžæ¯”å° | preset11 | n_grid(v2) | M-S1 |
+| S-SOLVER-PARTICLE | force.rs(M1) | åŒ S-INTEGRATOR | L2 | trails | M1 |
+| S-OBS | wgsl::fs_main | æ‰‹å‹• | L-ghost | field buffers | âœ“ |
+| S-CUT | wgsl::fs_main | æ‰‹å‹•æ‹–æ¡¿ | å‰æ²¿ | uniform | âœ“ |
+| S-BLEND | wgsl::fs_main | æˆªåœ– | å…¨ç•«é¢ | uniform | âœ“ |
+| S-DOTS | wgsl::fs_main | æˆªåœ– | L3 | commits | âœ“ |
+| S-HIST | wgsl::fs_main | æˆªåœ– | å³ç·£ | commits | âœ“ |
+| S-SAMPLER | lib.rs::sample_commits | unit(M1) | L3 | commits | âœ“ |
+| S-RNG | lib.rs::XorShift64 | unit(M1) | â€” | â€” | âœ“ |
+| S-FORCE-GRAV | force.rs(M1) | åœ“è»Œé“(M1) | L0+L2 | force_grid(M2 å‰ç”¨è§£æž) | M1 |
+| S-INTEGRATOR | force.rs(M1) | èƒ½é‡æ¼‚ç§»(M1) | L2 | trails | M1 |
+| S-FORCE-GUID | force.rs(M2) | èˆ‡è§£æžâˆ‡phaseæ¯”å° | L2 | force_grid | M2 |
+| S-FORCE-EM | force.rs(M2) | å°ç¨±æ€§ | L0+L2 | force_grid | M2 |
+| S-FORCE-BOUND | force.rs(M2) | ç‰†å¤–é›¶åŠ› | L0 | force_grid | M2 |
+| S-COUPLING | force.rs(M2) | å…¨w=0â‡’F=0 | Kç†±åŠ›åœ– | force_grid | M2 |
+| S-DOMINANCE | force.rs(M2) | argmax ä¸€è‡´æ€§ | å°¾è·¡æŸ“è‰² | trails.hue | M2 |
+| S-SIGNATURE | lib.rs(M3) | ç´”å‡½æ•¸æ–·è¨€ | é™¤éŒ¯é¢æ¿ | æ–°buffer(å¥‘ç´„v2) | M3 |
+| S-LENSING | lib.rs(M4) | å½Žæ›²æ–¹å‘ç¬¦n=1+Î¦ | æ¢ç´‹å½Ž | field buffers | M4 |
+| S-PROJ-K | lib.rs(M-proj) | FFT å¾€è¿”èª¤å·® | P2 | æ–°buffer(å¥‘ç´„v2) | M-proj |
+| S-PROJ-W | lib.rs(M-proj) | è² å€¼å­˜åœ¨æ€§ | P3+é–ƒå…‰ | æ–°buffer(å¥‘ç´„v2) | M-proj |
+| S-PROJ-PATH | lib.rs(M-proj) | å¯†åº¦æ­¸ä¸€ | P4 | æ–°buffer(å¥‘ç´„v2) | M-proj |
+| S-GLUE | lib.rs(M-proj) | å–®é¢æ¿é‚„åŽŸå¿…æ•— | è† åˆé–ƒå…‰ | å¥‘ç´„v2 | M-proj |
 
-## 簽收規則
-1. B 實現完 → 跑 03 測試矩陣對應行 → 填代碼位/測試欄 → 提 PR/commit message 帶 `sign: S-XXX`。
-2. A 核對契約無漂移 → 狀態改 ✓。
-3. 契約 v2 觸發條件：任何新 buffer（signature/投影）加入時，A 先修 02 升版本。
+## ç°½æ”¶è¦å‰‡
+1. B å¯¦ç¾å®Œ â†’ è·‘ 03 æ¸¬è©¦çŸ©é™£å°æ‡‰è¡Œ â†’ å¡«ä»£ç¢¼ä½/æ¸¬è©¦æ¬„ â†’ æ PR/commit message å¸¶ `sign: S-XXX`ã€‚
+2. A æ ¸å°å¥‘ç´„ç„¡æ¼‚ç§» â†’ ç‹€æ…‹æ”¹ âœ“ã€‚
+3. å¥‘ç´„ v2 è§¸ç™¼æ¢ä»¶ï¼šä»»ä½•æ–° bufferï¼ˆsignature/æŠ•å½±ï¼‰åŠ å…¥æ™‚ï¼ŒA å…ˆä¿® 02 å‡ç‰ˆæœ¬ã€‚
 
-## 孤兒審計
-- 無代碼之卡：M# 欄位標示，允許（規劃中）。
-- 無卡之代碼：**禁止**；發現即補卡或刪除代碼（審計時點：每里程碑末）。
+## å­¤å…’å¯©è¨ˆ
+- ç„¡ä»£ç¢¼ä¹‹å¡ï¼šM# æ¬„ä½æ¨™ç¤ºï¼Œå…è¨±ï¼ˆè¦åŠƒä¸­ï¼‰ã€‚
+- ç„¡å¡ä¹‹ä»£ç¢¼ï¼š**ç¦æ­¢**ï¼›ç™¼ç¾å³è£œå¡æˆ–åˆªé™¤ä»£ç¢¼ï¼ˆå¯©è¨ˆæ™‚é»žï¼šæ¯é‡Œç¨‹ç¢‘æœ«ï¼‰ã€‚
 
-## 狀態更新（2026-10-11 batch）
-轉 ✓：S-SCENE, S-SOLVER-WAVE, S-FORCE-GRAV, S-INTEGRATOR, S-SOLVER-PARTICLE,
+## ç‹€æ…‹æ›´æ–°ï¼ˆ2026-10-11 batchï¼‰
+è½‰ âœ“ï¼šS-SCENE, S-SOLVER-WAVE, S-FORCE-GRAV, S-INTEGRATOR, S-SOLVER-PARTICLE,
 S-FORCE-GUID, S-FORCE-EM, S-FORCE-BOUND, S-DOMINANCE, S-SIGNATURE, S-LENSING,
-S-DIM, S-EXPLAIN, S-GRID, S-UNITY。
-備註：S-COUPLING=weights only（K 交叉項延後）；S-FORCE-GUID 實現但 unity 敗（E3）；
-S-LENSING 實現但彎折弱（E4）。
-仍 pending：S-GLUE（膠合 mismatch 未實施）。
-2026-10-11 二批轉 ✓：S-SOLVER-RAY（焦散淡=E7 polish）、S-PROJ-K/W/PATH（on-demand 按鈕）、
-S-POL（toy：偏振帶＋Malus 讀出，非場耦合）。
-2026-10-12 三批轉 ✓：S-ZEROCOPY(P1)、S-GOV(P2)、S-RASTER(P3, E10)、S-VOL/S-CAM(M-3D, E11)、
-S-SLOT/S-REV(M-SWAP, E12)。仍 pending：S-GLUE、S-GPUSIM(P4)、S-SIMD(P5)、筆刷力場（optional）。
+S-DIM, S-EXPLAIN, S-GRID, S-UNITYã€‚
+å‚™è¨»ï¼šS-COUPLING=weights onlyï¼ˆK äº¤å‰é …å»¶å¾Œï¼‰ï¼›S-FORCE-GUID å¯¦ç¾ä½† unity æ•—ï¼ˆE3ï¼‰ï¼›
+S-LENSING å¯¦ç¾ä½†å½ŽæŠ˜å¼±ï¼ˆE4ï¼‰ã€‚
+ä» pendingï¼šS-GLUEï¼ˆè† åˆ mismatch æœªå¯¦æ–½ï¼‰ã€‚
+2026-10-11 äºŒæ‰¹è½‰ âœ“ï¼šS-SOLVER-RAYï¼ˆç„¦æ•£æ·¡=E7 polishï¼‰ã€S-PROJ-K/W/PATHï¼ˆon-demand æŒ‰éˆ•ï¼‰ã€
+S-POLï¼ˆtoyï¼šåæŒ¯å¸¶ï¼‹Malus è®€å‡ºï¼Œéžå ´è€¦åˆï¼‰ã€‚
+2026-10-12 ä¸‰æ‰¹è½‰ âœ“ï¼šS-ZEROCOPY(P1)ã€S-GOV(P2)ã€S-RASTER(P3, E10)ã€S-VOL/S-CAM(M-3D, E11)ã€
+S-SLOT/S-REV(M-SWAP, E12)ã€‚ä» pendingï¼šS-GLUEã€S-GPUSIM(P4)ã€S-SIMD(P5)ã€ç­†åˆ·åŠ›å ´ï¼ˆoptionalï¼‰ã€‚
+
+2026-10-12 三批轉 ✓：S-GLUE（機制通、訊號混疊=E17）、unity per-env obs＋源歸零（E16）。
+矩陣現況：wave/born 全綠；guidance/hforce 雙縫綠；corp 全紅。
+

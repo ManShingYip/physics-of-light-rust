@@ -601,7 +601,10 @@ impl WaveEngine {
         let h = self.height as usize;
         let n = w * h;
         let mut kproj = vec![0.0f32; n];
+        let mut kr: Vec<f32> = Vec::new();
+        let mut ki: Vec<f32> = Vec::new();
         let step = 4usize;
+        let kw = w / step;
         for ky in 0..h {
             for kx in 0..w {
                 let mut sr = 0.0f32;
@@ -617,8 +620,41 @@ impl WaveEngine {
                     }
                     y += step;
                 }
+                kr.push(sr);
+                ki.push(si);
                 kproj[ky * w + kx] = (sr * sr + si * si) / (step * step) as f32;
             }
+        }
+        // S-GLUE: inverse DFT round-trip; mismatch = obstruction / gluing failure hotspot.
+        let mut glue = vec![0.0f32; n];
+        let mut gmax = 1e-9f32;
+        for y in (0..h).step_by(2) {
+            for x in (0..w).step_by(2) {
+                let mut ar = 0.0f32;
+                let mut ai = 0.0f32;
+                let mut ky = 0;
+                while ky < h {
+                    let mut kx = 0;
+                    while kx < w {
+                        let ph = 6.2831853 * ((x * kx) as f32 / w as f32 + (y * ky) as f32 / h as f32);
+                        let ik = (ky / step) * kw + (kx / step);
+                        ar += kr[ik] * ph.cos() - ki[ik] * ph.sin();
+                        ai += kr[ik] * ph.sin() + ki[ik] * ph.cos();
+                        kx += step;
+                    }
+                    ky += step;
+                }
+                let dr = ar - self.real[y * w + x];
+                let di = ai - self.imag[y * w + x];
+                let m = (dr * dr + di * di).sqrt();
+                glue[y * w + x] = m;
+                if m > gmax {
+                    gmax = m;
+                }
+            }
+        }
+        for v in glue.iter_mut() {
+            *v /= gmax;
         }
         let mut kmax = 1e-9f32;
         for v in kproj.iter() {
@@ -678,6 +714,7 @@ impl WaveEngine {
         self.projs.extend_from_slice(&kproj);
         self.projs.extend_from_slice(&wign);
         self.projs.extend_from_slice(&path);
+        self.projs.extend_from_slice(&glue);
     }
 
     pub fn projs_ptr(&self) -> *const f32 {
@@ -805,10 +842,14 @@ impl WaveEngine {
         let mut e = WaveEngine::new(64, 64);
         e.set_batch(true);
         e.set_scene(env);
+        // Physical honesty: these lab setups contain no gravity/charge sources.
+        for s in e.sources.iter_mut() {
+            s.strength = 0.0;
+        }
         for _ in 0..steps / 2 {
             e.step(0.016);
         }
-        let obs = 0.5f32;
+        let obs = if env == 5 { 0.5 } else { 0.8 };
         match formula {
             0 => {
                 e.reg = force::Registry { w: [0.0; 4], on: [false; 4], slots: [0,1,2,3] };

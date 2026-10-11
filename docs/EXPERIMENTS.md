@@ -38,6 +38,14 @@
 ## E15 — 2026-10-12 色散三通道（M-SCI2）
 環境：prism＋disp on（R/G/B n 乘 0.75/1/1.3）｜观察：楔區三色 beating＋出射分離；sig shift=-0.196（偏折可測）｜結論：色散 PASS（顯示）；clean rainbow fan 仍 pending（傍軸彎折弱,E4 延續）｜截圖：k3.png
 
+## E16 — 2026-10-12 統一矩陣 v3（M-SCI1 修正後）
+配置：per-env obs（5→0.5, 1/3→0.8）、實驗源強度歸零、boundary=吸收｜结果：
+**wave/born 列三關全綠（標準 QM 統一）**；guidance/hforce：雙縫 P、shadow f、prism f；corp 全 f｜
+解讀：H programme 現狀＝雙縫統一、影與棱鏡未統一＝**精确嘅開放前沿**｜截圖：k2.png＋host unity_dbg
+
+## E17 — 2026-10-12 S-GLUE 首跑
+方法：stride-4 DFT 往返 mismatch｜观察：panel0 紅閃含大量混疊噪聲（stride 取樣誤差＞物理 obstruction）｜結論：機制 PASS、訊號未淨；改進＝full-step DFT 或 windowing｜開放｜截圖：m1.png
+
 ## E10 — 2026-10-11 無 GPU fallback 驗證（P3）
 環境：?nogpu=1（Rust CPU 光柵化＋putImageData）｜观察：完整雙縫干涉畫面、commits 累積｜結論：PASS——最弱設備仍有全畫面｜截圖：g1.png
 

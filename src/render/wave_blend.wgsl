@@ -186,6 +186,8 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
         if (panel == 0u) {
             let psi = sample_field(uv);
             col = phase_to_rgb(atan2(psi.y, psi.x), psi.x * psi.x + psi.y * psi.y);
+            let gm = proj_buf[27648u + idx];
+            col = mix(col, vec3<f32>(1.0, 0.15, 0.1), clamp(gm * 1.5, 0.0, 0.8));
         } else if (panel == 1u) {
             col = vec3<f32>(0.1, 0.7, 0.9) * pow(proj_buf[idx], 0.35);
         } else if (panel == 2u) {
