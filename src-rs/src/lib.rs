@@ -433,12 +433,33 @@ impl WaveEngine {
 
     pub fn spawn(&mut self, n: u32, seed: u64) {
         let mut rng = XorShift64::new(seed);
+        let w = self.width as usize;
+        let h = self.height as usize;
+        // |psi|^2-born spawn (E23): sample y from incident-column density,
+        // so particle ensemble starts in quantum equilibrium (equivariance).
+        let ix = 2usize.min(w - 1);
+        let mut cdf = Vec::with_capacity(h);
+        let mut acc = 0.0f32;
+        for y in 0..h {
+            let i = y * w + ix;
+            acc += self.real[i] * self.real[i] + self.imag[i] * self.imag[i];
+            cdf.push(acc);
+        }
         for _ in 0..n {
             if self.particles.len() >= 256 {
                 break;
             }
-            let y = rng.next_f32();
-            let jy = (rng.next_f32() - 0.5) * 0.004;
+            let y = if acc > 1e-9 {
+                let target = rng.next_f32() * acc;
+                let yi = match cdf.binary_search_by(|v| v.partial_cmp(&target).unwrap_or(std::cmp::Ordering::Less)) {
+                    Ok(i) => i,
+                    Err(i) => i.min(h - 1),
+                };
+                yi as f32 / h as f32
+            } else {
+                rng.next_f32()
+            };
+            let jy = (rng.next_f32() - 0.5) / h as f32;
             self.particles.push(force::Particle {
                 x: 0.02,
                 y: (y + jy).clamp(0.0, 1.0),
@@ -618,18 +639,29 @@ impl WaveEngine {
         let h = self.height as usize;
         let n = w * h;
         let tau = 6.2831853;
+        let hann = |i: usize, n: usize| -> f32 {
+            if n <= 1 {
+                1.0
+            } else {
+                0.5 - 0.5 * (tau * i as f32 / (n - 1) as f32).cos()
+            }
+        };
         let mut tr = vec![0.0f32; n];
         let mut ti = vec![0.0f32; n];
         for y in 0..h {
+            let wy = hann(y, h);
             for kx in 0..w {
                 let mut sr = 0.0f32;
                 let mut si = 0.0f32;
                 for x in 0..w {
+                    let wv = wy * hann(x, w);
+                    let pr = self.real[y * w + x] * wv;
+                    let pi = self.imag[y * w + x] * wv;
                     let ph = -tau * ((x * kx) as f32 / w as f32);
                     let c = ph.cos();
                     let s2 = ph.sin();
-                    sr += self.real[y * w + x] * c - self.imag[y * w + x] * s2;
-                    si += self.real[y * w + x] * s2 + self.imag[y * w + x] * c;
+                    sr += pr * c - pi * s2;
+                    si += pr * s2 + pi * c;
                 }
                 tr[y * w + kx] = sr;
                 ti[y * w + kx] = si;
@@ -714,8 +746,9 @@ impl WaveEngine {
                 }
                 ar /= h as f32;
                 ai /= h as f32;
-                let dr = ar - self.real[y * w + x];
-                let di = ai - self.imag[y * w + x];
+                let wv = hann(y, h) * hann(x, w);
+                let dr = ar - self.real[y * w + x] * wv;
+                let di = ai - self.imag[y * w + x] * wv;
                 let m = (dr * dr + di * di).sqrt();
                 glue[y * w + x] = m;
                 if m > gmax {
@@ -909,7 +942,7 @@ impl WaveEngine {
         for _ in 0..steps / 2 {
             e.step(0.016);
         }
-        let obs = if env == 5 { 0.5 } else { 0.8 };
+        let obs = match env { 5 => 0.5, 3 => 0.85, _ => 0.8 };
         match formula {
             0 => {
                 e.reg = force::Registry { w: [0.0; 4], on: [false; 4], slots: [0,1,2,3] };
@@ -1799,4 +1832,6 @@ impl WaveEngine {
         self.brush.fill(0.0);
     }
 }
+
+
 

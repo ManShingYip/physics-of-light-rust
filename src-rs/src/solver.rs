@@ -9,11 +9,13 @@ pub struct Solver {
     pub t: f32,
     scratch_re: Vec<f32>,
     scratch_im: Vec<f32>,
+    lap_r: Vec<f32>,
+    lap_i: Vec<f32>,
 }
 
 impl Solver {
     pub fn new() -> Solver {
-        Solver { drive: true, rev: false, sponge: true, pre_re: Vec::new(), pre_im: Vec::new(), t: 0.0, scratch_re: Vec::new(), scratch_im: Vec::new() }
+        Solver { drive: true, rev: false, sponge: true, pre_re: Vec::new(), pre_im: Vec::new(), t: 0.0, scratch_re: Vec::new(), scratch_im: Vec::new(), lap_r: Vec::new(), lap_i: Vec::new() }
     }
 }
 
@@ -127,7 +129,11 @@ pub fn wave_step(
         s.pre_im = im.to_vec();
         s.scratch_re = re.to_vec();
         s.scratch_im = im.to_vec();
+        s.lap_r = re.to_vec();
+        s.lap_i = im.to_vec();
     }
+    laplacian(re, w, h, &mut s.lap_r);
+    laplacian(im, w, h, &mut s.lap_i);
     let cdt = 0.10f32;
     let nr = &mut s.scratch_re;
     let ni = &mut s.scratch_im;
@@ -181,7 +187,7 @@ pub fn wave_step(
         let ci0 = -(omega * s.t).sin() * dr;
         for y in 0..h {
             let yy = (y as f32 + 0.5) / h as f32 - 0.5;
-            let env = (-(yy * yy) / (2.0 * 0.18 * 0.18)).exp();
+            let env = (-(yy * yy) / (2.0 * 0.12 * 0.12)).exp();
             let i = y * w + 1;
             nr[i] += cr0 * env;
             ni[i] += ci0 * env;
@@ -207,3 +213,44 @@ pub fn wave_step(
 
 
 
+
+
+
+/// 5-point laplacian; wasm32 uses f32x4 SIMD over rows (P5).
+pub fn laplacian(src: &[f32], w: usize, h: usize, out: &mut [f32]) {
+    for y in 0..h {
+        let base = y * w;
+        let ym = y.saturating_sub(1) * w;
+        let yp = (y + 1).min(h - 1) * w;
+        let scalar = |x: usize, out: &mut [f32]| {
+            let xm = x.saturating_sub(1);
+            let xp = (x + 1).min(w - 1);
+            out[base + x] = src[base + xm] + src[base + xp] + src[ym + x] + src[yp + x] - 4.0 * src[base + x];
+        };
+        scalar(0, out);
+        let mut x = 1;
+        #[cfg(target_arch = "wasm32")]
+        {
+            use core::arch::wasm32::*;
+            while x + 4 <= w - 1 {
+                unsafe {
+                    let p = src.as_ptr();
+                    let v1 = v128_load(p.add(base + x - 1) as *const v128);
+                    let v2 = v128_load(p.add(base + x + 1) as *const v128);
+                    let v0 = v128_load(p.add(base + x) as *const v128);
+                    let va = v128_load(p.add(ym + x) as *const v128);
+                    let vb = v128_load(p.add(yp + x) as *const v128);
+                    let s = f32x4_add(f32x4_add(v1, v2), f32x4_add(va, vb));
+                    let r = f32x4_sub(s, f32x4_mul(v0, f32x4_splat(4.0)));
+                    v128_store(out.as_mut_ptr().add(base + x) as *mut v128, r);
+                }
+                x += 4;
+            }
+        }
+        while x < w - 1 {
+            scalar(x, out);
+            x += 1;
+        }
+        scalar(w - 1, out);
+    }
+}

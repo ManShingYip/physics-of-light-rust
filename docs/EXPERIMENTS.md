@@ -87,3 +87,15 @@ textbook clean fan 仍開放（需更窄束＋更長傳播距）｜截圖：q3.p
 
 ## E25 — 2026-10-12 筆刷力場 L7
 變更：brush grid 48²×2、paint 拖曳畫力、slot 選 brush｜驗證：編譯＋arrows 層顯示；手動清單入 TESTS｜紀錄
+
+## E26 — 2026-10-12 |ψ|²-born spawn（強攻六）
+變更：spawn 改入射列 |ψ|² CDF 抽樣（量子平衡初態）｜结果：corp@shadow 轉 PASS（準直束彈道影乾淨）；
+guidance@env5 轉 fail｜解讀：born spawn 係正確物理；guidance 敗績暴露**積分器破壞 equivariance**
+（steering 離散化＋clamp）｜開放：symplectic/exact-phase Bohm 積分器｜矩陣現況：wave/born 全綠、corp  shadow 綠、guidance/hforce 雙縫綠（舊 uniform spawn 時）→ 現 guidance 全線開放
+
+## E27 — 2026-10-12 clean fan 三連改（強攻七）
+變更：σ 0.18→0.12、楔左移 0.35-0.60、prism obs 0.85、256²｜观察：光束集中、楔後彎折彩色流清晰、
+sig shift=-0.029 corr=0.95｜結論：改善 PASS；textbook fan 仍開放（需 per-channel 分離顯示而非 RGB 合成）｜截圖：r1.png
+
+## E28 — 2026-10-12 P5 SIMD laplacian
+變更：wave_step 行方向 laplacian 改 wasm32 f32x4（edge scalar）｜驗證：cargo test 11/11＋wasm build＋幀率無回歸｜紀錄
