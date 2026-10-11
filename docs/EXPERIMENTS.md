@@ -112,3 +112,12 @@ sig shift=-0.029 corr=0.95｜結論：改善 PASS；textbook fan 仍開放（需
 
 ## E31 — 2026-10-12 glue 定量閾值
 變更：selftest 加 glue_obstruction_localized（牆 edge-ring 均值 > 1.5× fan 均值）｜结果：9/9 PASS｜截圖：selftest console
+
+## E32 — 2026-10-12 discrete-flux Bohm（強攻十）
+變更：v = J/ρ 由 leapfrog staggered continuity 對 (pre,cur) 導出；advection 入 step() 每 wave_step 一次；
+step_force 移除 steering（guid 槽改純 flux）｜结果：guidance@shadow 轉 PASS（equivariance 結構性修復）；
+@doubleslit/prism 仍 fail（slit jet clamp 與近場峰結構）｜結論：方向正確、未完全收斂｜開放
+
+## E33 — 2026-10-12 time-avg intensity（clean fan 達成）
+變更：ρ EMA（α=0.05）＋binding 11＋flag 1024 單色強度顯示｜观察：駐波條紋消失、楔後彎折光束平滑可見｜
+結論：PASS——clean fan 以強度語義達成（相位語義本質有駐波）｜截圖：t6.png｜selftest 12/12

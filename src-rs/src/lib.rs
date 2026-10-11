@@ -87,6 +87,7 @@ pub struct WaveEngine {
     splats: Vec<f32>,
     batch: bool,
     brush: Vec<f32>,
+    avg: Vec<f32>,
 }
 
 struct DimFields {
@@ -226,6 +227,7 @@ impl WaveEngine {
             splats: Vec::new(),
             batch: false,
             brush: vec![0.0; 48 * 48 * 2],
+            avg: vec![0.0; n],
         };
         e.solver.pre_re = e.real.clone();
         e.solver.pre_im = e.imag.clone();
@@ -260,6 +262,7 @@ impl WaveEngine {
         let h = self.height as usize;
         for _ in 0..2 {
             solver::wave_step(&mut self.real, &mut self.imag, &mut self.solver, &n, &mask, w, h, omega);
+            self.advect_flux();
             if self.disp_on {
                 let mut nr = n.clone();
                 let mut nb = n.clone();
@@ -290,6 +293,10 @@ impl WaveEngine {
                 shapes[di], omega, self.dims.t, 0.10, &[], &[], 0,
             );
         }
+        for i in 0..(w * h) {
+            let rho = self.real[i] * self.real[i] + self.imag[i] * self.imag[i];
+            self.avg[i] += 0.05 * (rho - self.avg[i]);
+        }
         self.dims.t += 1.0;
         if self.dim3 {
             let r = self.res3;
@@ -304,6 +311,41 @@ impl WaveEngine {
         self.step_rays(dt);
     }
 
+    /// Advect guidance particles by discrete flux velocity (equivariant pair).
+    pub fn advect_flux(&mut self) {
+        if !(self.reg.on.iter().zip(self.reg.slots.iter()).any(|(&o, &s)| o && s == force::LAW_GUID)) {
+            return;
+        }
+        let w = self.width as usize;
+        let h = self.height as usize;
+        let pr = self.solver.pre_re.clone();
+        let pi = self.solver.pre_im.clone();
+        for p in self.particles.iter_mut() {
+            if !p.alive {
+                continue;
+            }
+            let fx = (p.x * w as f32).clamp(0.0, (w - 1) as f32);
+            let fy = (p.y * h as f32).clamp(0.0, (h - 1) as f32);
+            let x0 = fx as usize;
+            let y0 = fy as usize;
+            let x1 = (x0 + 1).min(w - 1);
+            let y1 = (y0 + 1).min(h - 1);
+            let tx = fx - x0 as f32;
+            let ty = fy - y0 as f32;
+            let v00 = flux_vel2(&pr, &pi, &self.real, &self.imag, w, h, x0, y0);
+            let v10 = flux_vel2(&pr, &pi, &self.real, &self.imag, w, h, x1, y0);
+            let v01 = flux_vel2(&pr, &pi, &self.real, &self.imag, w, h, x0, y1);
+            let v11 = flux_vel2(&pr, &pi, &self.real, &self.imag, w, h, x1, y1);
+            let vx = (v00[0] * (1.0 - tx) + v10[0] * tx) * (1.0 - ty) + (v01[0] * (1.0 - tx) + v11[0] * tx) * ty;
+            let vy = (v00[1] * (1.0 - tx) + v10[1] * tx) * (1.0 - ty) + (v01[1] * (1.0 - tx) + v11[1] * tx) * ty;
+            p.x += vx / w as f32;
+            p.y += vy / h as f32;
+            if p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0 {
+                p.alive = false;
+            }
+        }
+    }
+
     pub fn step_force(&mut self, dt: f32) {
         self.tick += 1;
         let w = self.width as usize;
@@ -311,37 +353,26 @@ impl WaveEngine {
         let mask = self.scene.mask.clone();
         let sources = self.sources.clone();
         let reg = self.reg;
-        let cm = self.eff_custom();
-        let prog = self.custom_prog.clone();
-        let mut gsum = 0.0f32;
-        let mut gc = 0u32;
-        if reg.on[0] {
-            for sy in (0..h).step_by(8) {
-                for sx in (0..w).step_by(8) {
-                    let g = grad2(&self.real, &self.imag, w, h, sx, sy);
-                    gsum += (g[0] * g[0] + g[1] * g[1]).sqrt() * 0.006;
-                    gc += 1;
-                }
+        let mut reg2 = reg;
+        for i in 0..4 {
+            if reg2.slots[i] == force::LAW_GUID {
+                reg2.on[i] = false;
             }
         }
-        let cscale = 0.004 / ((gsum / (gc as f32).max(1.0)) + 1e-9);
-        let guid_only = reg.on[0] && reg.slots.contains(&force::LAW_GUID) && !reg.on[1] && !reg.on[2] && !reg.on[3];
-        let subs: u32 = if guid_only { 4 } else { 2 };
+        let cm = self.eff_custom();
+        let prog = self.custom_prog.clone();
         for p in self.particles.iter_mut() {
             if !p.alive {
                 continue;
             }
             let mut dom = 0u32;
-            for _sub in 0..subs {
+            for _sub in 0..2 {
                 let (grad, maskg) = if self.dim3 {
                     let r = self.res3;
                     let ix = ((p.x * r as f32) as usize).min(r - 1);
                     let iy = ((p.y * r as f32) as usize).min(r - 1);
                     let iz = ((p.z * r as f32) as usize).min(r - 1);
                     (grad3(&self.re3, &self.im3, r, ix, iy, iz), maskg3(&self.scene3.mask, r, ix, iy, iz))
-                } else if guid_only {
-                    let g = grad2_bil(&self.real, &self.imag, w, h, p.x, p.y);
-                    ([g[0], g[1], 0.0], [0.0, 0.0, 0.0])
                 } else {
                     let ix = ((p.x * w as f32) as usize).min(w - 1);
                     let iy = ((p.y * h as f32) as usize).min(h - 1);
@@ -351,7 +382,7 @@ impl WaveEngine {
                 };
                 let grad = [grad[0] * 0.006, grad[1] * 0.006, grad[2] * 0.006];
                 let maskg = [maskg[0] * 0.004, maskg[1] * 0.004, maskg[2] * 0.004];
-                let (mut f, d) = force::net_force([p.x, p.y, p.z], grad, maskg, &sources, &reg, cm, prog.as_deref(), &self.brush);
+                let (mut f, d) = force::net_force([p.x, p.y, p.z], grad, maskg, &sources, &reg2, cm, prog.as_deref(), &self.brush);
                 dom = d;
                 for si in 0..4 {
                     if reg.on[si] && reg.slots[si] == force::LAW_QP {
@@ -362,23 +393,7 @@ impl WaveEngine {
                         f[1] += reg.w[si] * qv[1] * 0.0008;
                     }
                 }
-                if reg.on[0] && reg.slots.contains(&force::LAW_GUID) {
-                    let gl = (grad[0] * grad[0] + grad[1] * grad[1] + grad[2] * grad[2]).sqrt();
-                    if gl > 1e-9 {
-                        if guid_only {
-                            // exact-phase Bohm: v := grad-S * c (no blend, no clamp bias)
-                            p.vx = grad[0] * cscale;
-                            p.vy = grad[1] * cscale;
-                            p.vz = grad[2] * cscale;
-                        } else {
-                            let mixw = 0.2;
-                            p.vx = p.vx * (1.0 - mixw) + grad[0] * cscale * mixw;
-                            p.vy = p.vy * (1.0 - mixw) + grad[1] * cscale * mixw;
-                            p.vz = p.vz * (1.0 - mixw) + grad[2] * cscale * mixw;
-                        }
-                    }
-                }
-                force::integrate(p, f, dt / subs as f32);
+                force::integrate(p, f, dt * 0.5);
             }
             p.hue = dom;
             if self.tick % 2 == 0 && p.alive {
@@ -573,6 +588,14 @@ impl WaveEngine {
         self.chb_im.fill(0.0);
         self.sol_r = solver::Solver::new();
         self.sol_b = solver::Solver::new();
+    }
+
+    pub fn avg_ptr(&self) -> *const f32 {
+        self.avg.as_ptr()
+    }
+
+    pub fn avg_len(&self) -> u32 {
+        self.avg.len() as u32
     }
 
     pub fn disp_ptr(&self) -> *const f32 {
@@ -1666,6 +1689,57 @@ fn qp_force(re: &[f32], im: &[f32], w: usize, h: usize, x: usize, y: usize) -> [
     ]
 }
 
+/// Discrete probability-flux velocity (cells per wave_step), derived from the
+/// leapfrog staggered continuity pair (pre=psi_{n-1}, cur=psi_n):
+/// F_{i->j} = 4*cdt*Im(pre_i* cur_j);  v_i = sum_j (x_j-x_i) F_ij / rho_i.
+/// Equivariant by construction with the discrete continuity equation (E32).
+fn flux_vel2(
+    pre_re: &[f32],
+    pre_im: &[f32],
+    re: &[f32],
+    im: &[f32],
+    w: usize,
+    h: usize,
+    x: usize,
+    y: usize,
+) -> [f32; 2] {
+    let i = y * w + x;
+    let rho = re[i] * re[i] + im[i] * im[i] + 1e-6;
+    let cdt = 0.10;
+    let mut vx = 0.0f32;
+    let mut vy = 0.0f32;
+    let link = |j: usize, dx: f32, dy: f32| -> (f32, f32) {
+        let f = 4.0 * cdt * (pre_re[i] * im[j] - pre_im[i] * re[j]);
+        (dx * f / rho, dy * f / rho)
+    };
+    if x + 1 < w {
+        let (a, b) = link(i + 1, 1.0, 0.0);
+        vx += a;
+        vy += b;
+    }
+    if x > 0 {
+        let (a, b) = link(i - 1, -1.0, 0.0);
+        vx += a;
+        vy += b;
+    }
+    if y + 1 < h {
+        let (a, b) = link(i + w, 0.0, 1.0);
+        vx += a;
+        vy += b;
+    }
+    if y > 0 {
+        let (a, b) = link(i - w, 0.0, -1.0);
+        vx += a;
+        vy += b;
+    }
+    let sp = (vx * vx + vy * vy).sqrt();
+    if sp > 0.5 {
+        vx *= 0.5 / sp;
+        vy *= 0.5 / sp;
+    }
+    [vx, vy]
+}
+
 fn grad2_bil(re: &[f32], im: &[f32], w: usize, h: usize, fx: f32, fy: f32) -> [f32; 2] {
     let x0 = (fx * w as f32 - 0.5).clamp(0.0, (w - 2) as f32);
     let y0 = (fy * h as f32 - 0.5).clamp(0.0, (h - 2) as f32);
@@ -1841,6 +1915,17 @@ mod tests {
     }
 
     #[test]
+    fn avg_accumulates() {
+        let mut e = WaveEngine::new(64, 64);
+        e.set_scene(5);
+        for _ in 0..100 {
+            e.step(0.016);
+        }
+        let mx = e.avg.iter().cloned().fold(0.0f32, f32::max);
+        assert!(mx > 0.1, "avg max {mx}");
+    }
+
+    #[test]
     fn qp_zero_on_uniform_density() {
         let re = vec![1.0f32; 64];
         let im = vec![0.0f32; 64];
@@ -1895,6 +1980,9 @@ impl WaveEngine {
         self.brush.fill(0.0);
     }
 }
+
+
+
 
 
 

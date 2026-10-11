@@ -110,6 +110,7 @@ async function main(): Promise<void> {
     rays: getEl<HTMLInputElement>('rays'),
     disp: getEl<HTMLInputElement>('disp'),
     glue: getEl<HTMLInputElement>('glue'),
+    tavg: getEl<HTMLInputElement>('tavg'),
     paint: getEl<HTMLInputElement>('paint'),
     resSel: getEl<HTMLSelectElement>('resSel'),
     dim3: getEl<HTMLInputElement>('dim3'),
@@ -173,7 +174,7 @@ async function main(): Promise<void> {
     (el.pol.checked ? 16 : 0) |
     (el.dim3.checked ? 32 : 0) |
     (el.disp.checked ? 256 : 0) |
-    (el.glue.checked ? 512 : 0) |
+    (el.glue.checked ? 512 : 0) | (el.tavg.checked ? 1024 : 0) |
     renderMode()
 
   const syncForces = (): void => {
@@ -216,6 +217,7 @@ async function main(): Promise<void> {
   let uploadSplats: () => void = () => {}
   let uploadProjs: () => void = () => {}
   let uploadDisp: () => void = () => {}
+  let uploadAvg: () => void = () => {}
   let dyn: { realBuf: unknown; imagBuf: unknown; projBuf: unknown; dispBuf: unknown; bg: unknown } = {
     realBuf: null,
     imagBuf: null,
@@ -270,8 +272,9 @@ async function main(): Promise<void> {
       bufs.field3 = mkBuf(64 * 64 * 64 * 2 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
       bufs.force = mkBuf(48 * 48 * 10 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
       bufs.dims = mkBuf(77568 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
-      bufs.proj = mkBuf(96 * 96 * 3 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
-      bufs.disp = mkBuf(96 * 96 * 3 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
+      bufs.proj = mkBuf(FW * FH * 4 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
+      bufs.disp = mkBuf(FW * FH * 6 * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
+      bufs.avg = mkBuf(FW * FH * 4, BUFFER_STORAGE | BUFFER_COPY_DST)
       bufs.splat = mkBuf(SPLAT_CAP * 16, BUFFER_STORAGE | BUFFER_COPY_DST)
 
       const module = dev.createShaderModule({ code: wgslSrc }) as unknown as {
@@ -321,6 +324,7 @@ async function main(): Promise<void> {
           { binding: 8, resource: { buffer: bufs.dims } },
           { binding: 9, resource: { buffer: bufs.proj } },
           { binding: 10, resource: { buffer: bufs.disp } },
+          { binding: 11, resource: { buffer: bufs.avg } },
         ],
       }) as unknown
       bindGroup2 = dev.createBindGroup({
@@ -380,6 +384,9 @@ async function main(): Promise<void> {
       uploadSplats = (): void => {
         dev.queue.writeBuffer(bufs.splat, 0, viewF32(engine.splats_ptr() as unknown as number, Number(engine.splats_len()) * 4))
       }
+      uploadAvg = (): void => {
+        dev.queue.writeBuffer(bufs.avg, 0, viewF32(engine.avg_ptr() as unknown as number, Number(engine.avg_len())))
+      }
       uploadDisp = (): void => {
         dev.queue.writeBuffer(bufs.disp, 0, viewF32(engine.disp_ptr() as unknown as number, Number(engine.disp_len())))
       }
@@ -435,6 +442,7 @@ async function main(): Promise<void> {
         if (frames % 6 === 0) uploadForce()
         if (el.dims.checked && frames % 3 === 0) uploadDims()
     if (el.disp.checked && frames % 3 === 0) uploadDisp()
+    if (el.tavg.checked && frames % 3 === 0) uploadAvg()
         const enc = dev.createCommandEncoder()
         const view = context.getCurrentTexture().createView()
         const pass = enc.beginRenderPass({
@@ -849,6 +857,8 @@ main().catch((e: unknown) => {
   console.error(e)
   document.getElementById('status')!.textContent = 'error'
 })
+
+
 
 
 

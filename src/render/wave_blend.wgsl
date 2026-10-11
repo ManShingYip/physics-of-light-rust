@@ -52,6 +52,7 @@ struct VsOut {
 @group(0) @binding(8) var<storage, read> dims_buf: array<f32>;
 @group(0) @binding(9) var<storage, read> proj_buf: array<f32>;
 @group(0) @binding(10) var<storage, read> disp_rgb: array<f32>;
+@group(0) @binding(11) var<storage, read> avg_buf: array<f32>;
 
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> VsOut {
@@ -158,6 +159,7 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     let pol_on = (params.flags & 16u) != 0u;
     let dim3_on = (params.flags & 32u) != 0u;
     let disp_on = (params.flags & 256u) != 0u;
+    let tavg_on = (params.flags & 1024u) != 0u;
     let r1 = (params.flags & 64u) != 0u;
     let r2 = (params.flags & 128u) != 0u;
 
@@ -246,6 +248,11 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
         let psi = sample_field(uv);
         let rho = psi.x * psi.x + psi.y * psi.y;
         var ghost_color = phase_to_rgb(atan2(psi.y, psi.x), rho);
+        if (tavg_on) {
+            let ai = clamp(u32(uv.y * f32(params.field_h)), 0u, params.field_h - 1u) * params.field_w + clamp(u32(uv.x * f32(params.field_w)), 0u, params.field_w - 1u);
+            let av = avg_buf[ai];
+            ghost_color = vec3<f32>(0.55, 1.0, 0.75) * (av / (av + 0.85) * 1.6);
+        }
         if (disp_on) {
             let band = clamp(u32(uv.y * 3.0), 0u, 2u);
             let ly = fract(uv.y * 3.0);
