@@ -54,3 +54,5 @@ S-LENSING 實現但彎折弱（E4）。
 仍 pending：S-GLUE（膠合 mismatch 未實施）。
 2026-10-11 二批轉 ✓：S-SOLVER-RAY（焦散淡=E7 polish）、S-PROJ-K/W/PATH（on-demand 按鈕）、
 S-POL（toy：偏振帶＋Malus 讀出，非場耦合）。
+2026-10-12 三批轉 ✓：S-ZEROCOPY(P1)、S-GOV(P2)、S-RASTER(P3, E10)、S-VOL/S-CAM(M-3D, E11)、
+S-SLOT/S-REV(M-SWAP, E12)。仍 pending：S-GLUE、S-GPUSIM(P4)、S-SIMD(P5)、筆刷力場（optional）。

@@ -183,6 +183,24 @@ pub struct Particle {
 
 ---
 
+## 6.6 效能與資源軌（v4, M-PERF）— 弱機優先
+原則：**降階唔係失敗，係設計**。任何設備都必須跑到某個階梯級。
+| 步 | 內容 | 收益 |
+|---|---|---|
+| P1 | 零拷貝（writeBuffer 食 wasm view）＋Solver scratch（滅每幀 to_vec） | 每幀 MB 級拷貝→0；alloc→0 |
+| P2 | 自适应 governor：幀時間→解析度階梯(64³/48³/32³/2D)×渲染階梯(raymarch/slice/點雲)×substep×trail cap；perf 燈＋手動覆蓋 | 弱機自動降階 |
+| P3 | 無 WebGPU fallback = Rust CPU 光柵化＋putImageData blit（非 stub） | 最弱設備仍有畫面 |
+| P4 | stretch：WGSL compute 波演化（ping-pong），Rust 管事件/抽樣；讀回只 obs 列 | 場演化上 GPU，零傳輸 |
+| P5 | stretch：wasm simd128 laplacian | CPU 路 2-4× |
+預算憲法：每幀零 heap 分配；每幀 CPU→GPU 傳輸 ≤ 場大小×1（P4 後→obs 列 only）；
+wasm 記憶體 ≤ 8MB（48³×2×4B×2 + buffers）；bundle gzip ≤ 80KB。
+
+## 6.7 3D 力交互 phase（v4 最終形態）
+- M-3D1：主場升 3D（step_nd 复用）＋相機軌道＋渲染品質階梯（raymarch/slice/點雲同一 buffer）
+- M-3D2：3D 源 gizmo（拖曳/深度/加刪/反轉）＋impulse kick＋leapfrog pre/cur 交換時間反演＋配置 JSON 存讀
+- M-SWAP：四槽律選擇＋槽間 swap；操作集六項；筆刷力場=optional stretch
+- 測試加：反演回合測試（step N→反演→step N→ε 內回初態）、swap 不變性、JSON round-trip
+
 ## 6.5 里程碑狀態（2026-10-11）
 M-S1✓ M1✓ M2✓(weights only) M-S2△(dims+docent✓, pol 開放) M3✓ M4✓ M-S3✓ M5✓。
 開放項：guidance 雙縫敗(E3)、prism 彎折弱(E4)、S-POL/S-PROJ/S-GLUE/S-SOLVER-RAY 未實施。

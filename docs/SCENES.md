@@ -43,7 +43,24 @@ Scene {
 - 工程 01：場景系統領卡 S-SCENE；求解器領卡 S-SOLVER-{WAVE,RAY,PARTICLE}。
 - 工程 02：scene buffers（n-grid、mask-grid）入契約 v2。
 
-## 4. 擴充規則
+## 7. 3D 力交互沙盒（最終形態，v4）
+- 模擬：3D 複數場（預設 32³，governor 管至 64³）；n/mask 16³–24³；粒子/力全 3D。
+- 渲染品質階梯（同一 buffer 三模式＋FPS 自動降階）：
+  R0 volume raymarch（密度=ρ、色=相位、commit 發光、源發光球）
+  R1 slice 堆疊（3-5 個可移平面）
+  R2 3D 點雲（ρ 採樣點＋尾跡）
+- 相機：拖曳軌道(yaw/pitch)、滾輪 dolly、shift pan；uniform v4 持 view 矩陣參數。
+- 力交換模型：四槽各持一律（guid/grav/coul/bound/vortex/custom-expr）；
+  **swap = 兩槽律交換**（按鈕或拖 chip）；權重跟槽唔跟律（交換後權重留原位=可測「律vs強度」分離）。
+- 源操作六項：3D 拖曳、深度滑桿、加/刪、類型反轉(±)、impulse kick、配置 JSON 存/讀。
+- 時間反演：leapfrog pre/cur 交換=精確場反演；粒子速度反轉＋尾跡倒放。
+- 測試：反演回合 ε、swap 不變性（等權交換 net 不變）、JSON round-trip、governor 降階觸發。
+
+## 8. 資源階梯（接 PLAN §6.6）
+弱機路徑：無 WebGPU → P3 Rust 光柵化 2D；有 WebGPU 弱 GPU → R2/R1＋32³；
+強機 → R0＋48-64³。所有組合都必须可跑＝验收條件。
+
+## 9. 擴充規則
 新場景 = 新 preset 檔（參數＋判別行），唔改求解器＝純資料；
 需要新物理＝先回 01 領卡。目錄無上限：光現象博物館係長期目標。
 

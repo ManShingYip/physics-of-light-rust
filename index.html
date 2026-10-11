@@ -15,6 +15,7 @@
       <div>Backend (Rust/Wasm): <span id="status">loading...</span></div>
       <div>2 + 2 = <span id="result">-</span></div>
       <div id="gpuInfo">webgpu: ...</div>
+      <div id="perfLamp" style="color:#6f6">perf: ok</div>
       <div id="commitInfo">commits: -</div>
       <div id="timeInfo">t: 0.00</div>
       <div id="sigInfo">sig -</div>
@@ -41,6 +42,15 @@
       <label style="display:block;"><input id="dims" type="checkbox" /> dimension ladder D1-4</label>
       <label style="display:block;"><input id="duel" type="checkbox" /> duel (Born vs force)</label>
       <label style="display:block;"><input id="proj" type="checkbox" /> projections (x/k/Wigner/path)</label>
+      <label style="display:block;"><input id="dim3" type="checkbox" /> 3D mode (drag=orbit, wheel=zoom)</label>
+      <label style="display:block;">render
+        <select id="rmode">
+          <option value="auto" selected>auto (governor)</option>
+          <option value="ray">R0 raymarch</option>
+          <option value="slice">R1 slices</option>
+          <option value="point">R2 points</option>
+        </select>
+      </label>
       <label style="display:block;"><input id="rays" type="checkbox" /> geometric rays (caustics)</label>
       <label style="display:block;"><input id="pol" type="checkbox" /> polarizers (Malus)</label>
       <label style="display:block;">pol_a <input id="polA" type="range" min="0" max="3.14" step="0.01" value="0" /> pol_b <input id="polB" type="range" min="0" max="3.14" step="0.01" value="0.79" /></label>
@@ -50,6 +60,14 @@
       <label>grav <input id="fOn1" type="checkbox" checked /> <input id="fW1" type="range" min="0" max="4" step="0.1" value="1" style="width:70px" /></label>
       <label>em <input id="fOn2" type="checkbox" /> <input id="fW2" type="range" min="0" max="4" step="0.1" value="1" style="width:70px" /></label>
       <label>bnd <input id="fOn3" type="checkbox" checked /> <input id="fW3" type="range" min="0" max="4" step="0.1" value="1" style="width:70px" /></label>
+      <div style="margin-top:0.3rem;">slot laws:
+        <select id="slot0"><option value="0">guid</option><option value="1">grav</option><option value="2">coul</option><option value="3">bnd</option><option value="4">vortex</option><option value="5">custom</option></select>
+        <select id="slot1"><option value="0">guid</option><option value="1" selected>grav</option><option value="2">coul</option><option value="3">bnd</option><option value="4">vortex</option><option value="5">custom</option></select>
+        <select id="slot2"><option value="0">guid</option><option value="1">grav</option><option value="2" selected>coul</option><option value="3">bnd</option><option value="4">vortex</option><option value="5">custom</option></select>
+        <select id="slot3"><option value="0">guid</option><option value="1">grav</option><option value="2">coul</option><option value="3" selected>bnd</option><option value="4">vortex</option><option value="5">custom</option></select>
+      </div>
+      <div>swap: <select id="swapI"><option>0</option><option>1</option><option>2</option><option>3</option></select> ⇄ <select id="swapJ"><option>0</option><option selected>1</option><option>2</option><option>3</option></select> <button id="swapBtn" type="button">swap</button></div>
+      <div><button id="saveBtn" type="button">save cfg</button> <button id="loadBtn" type="button">load cfg</button></div>
       <div style="margin-top:0.3rem;">custom F(d): <input id="customExpr" type="text" size="14" value="" placeholder="e.g. 2/d^2" /><button id="applyExpr" type="button">set</button> <span id="exprStatus"></span></div>
       <div style="margin-top:0.4rem;">
         <button id="resample" type="button">resample</button>
@@ -69,19 +87,16 @@
     </div>
     <div id="helpOverlay" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.82); color: #eee; font-family: monospace; font-size: 13px; padding: 3rem; z-index: 10; white-space: pre-line;">
 SHORTCUTS
-1 / 2 / 3      scene: shadow / prism / doubleslit
-p              particles + dominance trails on/off
-h              fringe histogram on/off
-a              accumulate hits on/off
-d              duel mode (Born left / force right)
-l              dimension ladder D=1..4
-g              docent notes on/off
-u              run unity matrix (batch, sync)
-r              resample commits
-e              export signature JSON
-space          pause / resume
-[ ]            obs_width narrower / wider
-left / right   move obs line
+1 / 2 / 3 / 4  scene: shadow / prism / doubleslit / lens
+p h a d l g    toggles: particles / hist / accum / duel / dims / docent
+u r e          unity matrix / resample / export signature
+t              time reversal (leapfrog exact, 2D field)
+k              impulse kick to all particles
+c / x / v      add source / remove selected / flip sign
+Tab            cycle selected source; q / shift+e = depth -/+
+arrows         2D: move obs line | 3D: move selected source
+space          pause/resume      [ ]  obs width
+drag           2D: move force source | 3D: orbit camera (shift=pan, wheel=zoom)
 ?              toggle this help
 
 SELFTEST: append ?selftest=1 to URL — runs backend assertions in-page.

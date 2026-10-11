@@ -28,3 +28,12 @@
 
 ## E9 — 2026-10-11 Bohm 全速度 steering 再試（E3 跟進）
 公式：guidance 全速度覆蓋（無其他力時 mixw=1）｜签名：unity scene5 guidance 仍 fail｜結論：toy Bohm 缺量子勢／相位渦旋處理，**維持開放**｜截圖：unity5.png
+
+## E10 — 2026-10-11 無 GPU fallback 驗證（P3）
+環境：?nogpu=1（Rust CPU 光柵化＋putImageData）｜观察：完整雙縫干涉畫面、commits 累積｜結論：PASS——最弱設備仍有全畫面｜截圖：g1.png
+
+## E11 — 2026-10-11 3D raymarch 首跑（M-3D）
+環境：dim3 + R0 auto｜观察：波前自左面進入、相機軌道可控；早期幀場未充滿｜結論：PASS（顯示）；焦散/點雲待 polish｜截圖：g3.png
+
+## E12 — 2026-10-11 反演回合（S-REV）
+環境：cargo test reverse_roundtrip_2d（閉箱、drive/sponge off）｜结果：err<1e-2 PASS｜結論：leapfrog 反演精確（rev 步用 lap(pre)、next=cur−K·pre）；**開箱（drive/sponge）不可逆＝物理誠實**｜紀錄

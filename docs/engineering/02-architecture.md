@@ -61,3 +61,9 @@ I8 幾何唯一來源 = Scene 描述；求解器與著色器禁止硬編碼縫/�
 ## 6. 非目標（明確唔做）
 - 唔做相對論修正、唔做真 QED 環圖、唔做多機分散式。
 - L2 永遠唔發明事件（無點=0，唔補假點）。
+
+## 7. 資源憲法（v4 附加，I9-I12）
+I9 每幀零 heap 分配（P1 後）；scratch 全預alloc。
+I10 每幀 CPU→GPU 傳輸 ≤ 場 buffer×1；P4 後 ≤ obs 列。
+I11 wasm 記憶體 ≤ 8MB；bundle gzip ≤ 80KB；buffer 數 ≤ 16（requiredLimits 審查清單）。
+I12 任何設備組合（無 GPU/弱 GPU/強 GPU）×（2D/3D）都必须可跑於某階梯級；governor 保證。

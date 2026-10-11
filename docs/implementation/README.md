@@ -44,6 +44,18 @@ M2 ─→ M4 lensing                                                        │
 | STEP-M4.md | M4 | 重力 lensing 波場（力—力交互） |
 | STEP-M-S3.md | M-S3 | 環境網格批次＋統一矩陣 |
 | STEP-M5.md | M5 | duel＋自訂力律槽＋EXPERIMENTS |
+| STEP-M-PERF.md | M-PERF | 零拷貝零分配＋governor＋Rust 光柵 fallback |
+| STEP-M-3D.md | M-3D | 3D 場＋相機＋渲染品質階梯 |
+| STEP-M-SWAP.md | M-SWAP | 力槽交換＋源操作六項＋時間反演 |
+
+依賴序：M-PERF → M-3D → M-SWAP（P4/P5 stretch 隨時插入）。
+
+## 5. 完成紀錄二批（2026-10-12）
+| STEP | 狀態 | 證據 | 備註 |
+|---|---|---|---|
+| M-PERF | 完成 | g1.png（nogpu raster）；zero-copy view；governor 燈 | P4/P5 stretch 未做 |
+| M-3D | 完成 | g3.png（raymarch）＋R1/R2 模式 | 3D 反演不精確（記錄） |
+| M-SWAP | 完成 | slot/swap UI＋源鍵＋config 存讀＋T 反演（E12 pass） | 筆刷力場 optional 未做 |
 
 ## 4. 完成紀錄（2026-10-11，batch completion）
 | STEP | 狀態 | 證據 | 備註 |

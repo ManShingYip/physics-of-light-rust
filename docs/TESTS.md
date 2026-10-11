@@ -26,6 +26,14 @@
 | [ ] | obs_width 減/加 |
 | ← → | obs 線移動 |
 | ? | help overlay |
+| 4 | scene: lens (caustics) |
+| t | 時間反演（leapfrog exact, 2D 閉箱語義） |
+| k | impulse kick |
+| c / x / v | 加源 / 刪選中源 / 反轉源符號 |
+| Tab | 循環選中源；q / shift+e = 深度 −/+ |
+| 拖曳 | 2D: 移力源；3D: 相機軌道（shift=pan, wheel=zoom） |
+| URL ?nogpu=1 | 強制 Rust CPU 光柵化 fallback（P3 驗證路） |
+| URL ?selftest=1 | in-page 後端自檢 8 項 |
 
 ## 3. 手動驗收清單（每里程碑末）
 - 三場景切換畫面符 SCENES 描述

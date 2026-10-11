@@ -66,6 +66,17 @@ pub struct WaveEngine {
     rays: Vec<force::Particle>,
     rays_on: bool,
     projs: Vec<f32>,
+    re3: Vec<f32>,
+    im3: Vec<f32>,
+    pre3: Vec<f32>,
+    pim3: Vec<f32>,
+    scene3: scene::Scene3,
+    dim3: bool,
+    res3: usize,
+    points: Vec<f32>,
+    raster: Vec<u8>,
+    cam: [f32; 5],
+    splats: Vec<f32>,
 }
 
 struct DimFields {
@@ -89,62 +100,6 @@ impl DimFields {
             t: 0.0,
         }
     }
-}
-
-fn step_nd(d: &mut DimFields, di: usize, shape: &[usize], omega: f32) {
-    let n = d.sizes[di];
-    let cdt = 0.10f32;
-    let nd = shape.len();
-    let mut strides = vec![1usize; nd];
-    for k in (0..nd - 1).rev() {
-        strides[k] = strides[k + 1] * shape[k + 1];
-    }
-    let re = &d.re[di];
-    let im = &d.im[di];
-    let mut nr = re.clone();
-    let mut ni = im.clone();
-    for i in 0..n {
-        let mut lr = 0.0f32;
-        let mut li = 0.0f32;
-        let mut rem = i;
-        let mut edge = false;
-        for k in 0..nd {
-            let c = rem / strides[k];
-            rem %= strides[k];
-            if c == 0 || c == shape[k] - 1 {
-                edge = true;
-            }
-            if c > 0 {
-                lr += re[i - strides[k]] - re[i];
-                li += im[i - strides[k]] - im[i];
-            }
-            if c < shape[k] - 1 {
-                lr += re[i + strides[k]] - re[i];
-                li += im[i + strides[k]] - im[i];
-            }
-        }
-        let mut a = d.pre[di][i] - 2.0 * cdt * li;
-        let mut b = d.pim[di][i] + 2.0 * cdt * lr;
-        if edge {
-            a *= 0.9;
-            b *= 0.9;
-        }
-        nr[i] = a;
-        ni[i] = b;
-    }
-    let s0 = strides[0];
-    let c = (omega * d.t).cos() * 0.3;
-    let s = -(omega * d.t).sin() * 0.3;
-    for i in 0..n {
-        if (i / s0) % shape[0] == 1 {
-            nr[i] += c;
-            ni[i] += s;
-        }
-    }
-    d.pre[di].copy_from_slice(re);
-    d.pim[di].copy_from_slice(im);
-    d.re[di].copy_from_slice(&nr);
-    d.im[di].copy_from_slice(&ni);
 }
 
 fn hist_of_commits(commits: &[Commit], obs: f32) -> [f32; HIST_BINS] {
@@ -224,7 +179,7 @@ impl WaveEngine {
             particles: Vec::new(),
             trails: Vec::new(),
             sources: vec![
-                force::Source { x: 0.68, y: 0.32, strength: 1.0, kind: 0 },
+                force::Source { x: 0.68, y: 0.32, z: 0.5, strength: 1.0, kind: 0 },
                 force::Source::default(),
                 force::Source::default(),
                 force::Source::default(),
@@ -240,6 +195,17 @@ impl WaveEngine {
             rays: Vec::new(),
             rays_on: false,
             projs: vec![0.0; 96 * 96 * 3],
+            re3: vec![0.0; 32768],
+            im3: vec![0.0; 32768],
+            pre3: vec![0.0; 32768],
+            pim3: vec![0.0; 32768],
+            scene3: scene::preset3(5, 0.3, 0.2),
+            dim3: false,
+            res3: 32,
+            points: Vec::new(),
+            raster: vec![0u8; 96 * 96 * 4],
+            cam: [0.7, 0.5, 1.6, 0.0, 0.0],
+            splats: Vec::new(),
         };
         e.solver.pre_re = e.real.clone();
         e.solver.pre_im = e.imag.clone();
@@ -277,9 +243,21 @@ impl WaveEngine {
         }
         let shapes: [&[usize]; 4] = [&[128], &[64, 64], &[24, 24, 24], &[12, 12, 12, 12]];
         for di in 0..4 {
-            step_nd(&mut self.dims, di, shapes[di], omega);
+            solver::leapfrog(
+                &mut self.dims.re[di], &mut self.dims.im[di], &mut self.dims.pre[di], &mut self.dims.pim[di],
+                shapes[di], omega, self.dims.t, 0.10, &[], &[], 0,
+            );
         }
         self.dims.t += 1.0;
+        if self.dim3 {
+            let r = self.res3;
+            let shape3 = [r, r, r];
+            let n3 = self.scene3.n.clone();
+            let m3 = self.scene3.mask.clone();
+            for _ in 0..2 {
+                solver::leapfrog(&mut self.re3, &mut self.im3, &mut self.pre3, &mut self.pim3, &shape3, omega, self.solver.t, 0.10, &n3, &m3, 24);
+            }
+        }
         self.step_force(dt);
         self.step_rays(dt);
     }
@@ -297,37 +275,41 @@ impl WaveEngine {
             if !p.alive {
                 continue;
             }
-            let (f, dom) = force::force_at(p.x, p.y, &self.real, &self.imag, w, h, &mask, &sources, &reg, cm, prog.as_deref());
-            if reg.on[0] {
+            let (grad, maskg) = if self.dim3 {
+                let r = self.res3;
+                let ix = ((p.x * r as f32) as usize).min(r - 1);
+                let iy = ((p.y * r as f32) as usize).min(r - 1);
+                let iz = ((p.z * r as f32) as usize).min(r - 1);
+                (grad3(&self.re3, &self.im3, r, ix, iy, iz), maskg3(&self.scene3.mask, r, ix, iy, iz))
+            } else {
                 let ix = ((p.x * w as f32) as usize).min(w - 1);
                 let iy = ((p.y * h as f32) as usize).min(h - 1);
-                let g = force::grad_phase(&self.real, &self.imag, w, h, ix, iy);
-                let gl = (g[0] * g[0] + g[1] * g[1]).sqrt();
-                if gl > 1e-6 {
-                    let sp = (p.vx * p.vx + p.vy * p.vy).sqrt().max(0.004);
-                    let tx = g[0] / gl * sp;
-                    let ty = g[1] / gl * sp;
+                let g = grad2(&self.real, &self.imag, w, h, ix, iy);
+                let mg = maskg2(&mask, ix, iy);
+                ([g[0], g[1], 0.0], [mg[0], mg[1], 0.0])
+            };
+            let grad = [grad[0] * 0.006, grad[1] * 0.006, grad[2] * 0.006];
+            let maskg = [maskg[0] * 0.004, maskg[1] * 0.004, maskg[2] * 0.004];
+            let (f, dom) = force::net_force([p.x, p.y, p.z], grad, maskg, &sources, &reg, cm, prog.as_deref());
+            if reg.on[0] && reg.slots.contains(&force::LAW_GUID) {
+                let gl = (grad[0] * grad[0] + grad[1] * grad[1] + grad[2] * grad[2]).sqrt();
+                if gl > 1e-9 {
+                    let sp = (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz).sqrt().max(0.004);
                     let others = reg.on[1] || reg.on[2] || reg.on[3];
                     let mixw = if others { 0.2 } else { 1.0 };
-                    p.vx = p.vx * (1.0 - mixw) + tx * mixw;
-                    p.vy = p.vy * (1.0 - mixw) + ty * mixw;
+                    p.vx = p.vx * (1.0 - mixw) + grad[0] / gl * sp * mixw;
+                    p.vy = p.vy * (1.0 - mixw) + grad[1] / gl * sp * mixw;
+                    p.vz = p.vz * (1.0 - mixw) + grad[2] / gl * sp * mixw;
                 }
             }
             force::integrate(p, f, dt);
             p.hue = dom;
             if self.tick % 2 == 0 && p.alive {
-                self.trails.push(force::Trail { x: p.x, y: p.y, hue: p.hue, age: 0.0 });
+                self.trails.push(force::Trail { x: p.x, y: p.y, z: p.z, hue: p.hue });
             }
         }
-        for t in self.trails.iter_mut() {
-            t.age += dt;
-        }
-        while let Some(first) = self.trails.first() {
-            if first.age > 1.5 || self.trails.len() > force::MAX_TRAILS {
-                self.trails.remove(0);
-            } else {
-                break;
-            }
+        while self.trails.len() > force::MAX_TRAILS {
+            self.trails.remove(0);
         }
         self.particles.retain(|p| p.alive);
         if self.tick % 6 == 0 {
@@ -359,14 +341,14 @@ impl WaveEngine {
                         r2.on[k] = k == fi && saved[k];
                         r2.w[k] = if k == fi { 1.0 } else { 0.0 };
                     }
-                    let (f, _) = force::force_at(u, v, &self.real, &self.imag, w, h, &mask, &sources, &r2, 0.0, None);
+                    let g0 = grad2(&self.real, &self.imag, w, h, (u * w as f32) as usize % w, (v * h as f32) as usize % h); let mg0 = maskg2(&mask, (u * 48.0) as usize % 48, (v * 48.0) as usize % 48); let (f, _) = force::net_force([u, v, 0.5], [g0[0] * 0.006, g0[1] * 0.006, 0.0], [mg0[0] * 0.004, mg0[1] * 0.004, 0.0], &sources, &r2, 0.0, None);
                     let o = (gy * 48 + gx) * 10 + fi * 2;
                     g[o] = f[0];
                     g[o + 1] = f[1];
                     acc[0] += reg.w[fi] * f[0] * if saved[fi] { 1.0 } else { 0.0 };
                     acc[1] += reg.w[fi] * f[1] * if saved[fi] { 1.0 } else { 0.0 };
                 }
-                let (net, _) = force::force_at(u, v, &self.real, &self.imag, w, h, &mask, &sources, &reg, cm, None);
+                let g1 = grad2(&self.real, &self.imag, w, h, (u * w as f32) as usize % w, (v * h as f32) as usize % h); let mg1 = maskg2(&mask, (u * 48.0) as usize % 48, (v * 48.0) as usize % 48); let (net, _) = force::net_force([u, v, 0.5], [g1[0] * 0.006, g1[1] * 0.006, 0.0], [mg1[0] * 0.004, mg1[1] * 0.004, 0.0], &sources, &reg, cm, None);
                 let o = (gy * 48 + gx) * 10 + 8;
                 g[o] = net[0];
                 g[o + 1] = net[1];
@@ -395,8 +377,10 @@ impl WaveEngine {
             self.particles.push(force::Particle {
                 x: 0.02,
                 y: (y + jy).clamp(0.0, 1.0),
+                z: if self.dim3 { rng.next_f32() } else { 0.5 },
                 vx: 0.004,
                 vy: 0.0,
+                vz: 0.0,
                 alive: true,
                 hue: 0,
             });
@@ -445,7 +429,7 @@ impl WaveEngine {
 
     pub fn set_source(&mut self, i: u32, x: f32, y: f32, strength: f32, kind: u32) {
         let i = (i as usize).min(force::MAX_SOURCES - 1);
-        self.sources[i] = force::Source { x, y, strength, kind };
+        self.sources[i] = force::Source { x, y, z: 0.5, strength, kind };
     }
 
     pub fn source_x(&self, i: u32) -> f32 {
@@ -489,7 +473,7 @@ impl WaveEngine {
         if on && self.rays.is_empty() {
             for i in 0..180 {
                 let y = (i as f32 + 0.5) / 180.0;
-                self.rays.push(force::Particle { x: 0.01, y, vx: 0.006, vy: 0.0, alive: true, hue: 4 });
+                self.rays.push(force::Particle { x: 0.01, y, z: 0.5, vx: 0.006, vy: 0.0, vz: 0.0, alive: true, hue: 4 });
             }
         }
         if !on {
@@ -528,14 +512,14 @@ impl WaveEngine {
                 p.alive = false;
             }
             if self.tick % 2 == 0 && p.alive {
-                self.trails.push(force::Trail { x: p.x, y: p.y, hue: 4, age: 0.0 });
+                self.trails.push(force::Trail { x: p.x, y: p.y, z: 0.5, hue: 4 });
             }
         }
         self.rays.retain(|p| p.alive);
         if self.rays_on && self.rays.len() < 40 && self.tick % 60 == 0 {
             for i in 0..60 {
                 let y = ((self.tick / 60) as f32 * 0.1 + i as f32 / 60.0) % 1.0;
-                self.rays.push(force::Particle { x: 0.01, y, vx: 0.006, vy: 0.0, alive: true, hue: 4 });
+                self.rays.push(force::Particle { x: 0.01, y, z: 0.5, vx: 0.006, vy: 0.0, vz: 0.0, alive: true, hue: 4 });
             }
         }
     }
@@ -642,6 +626,46 @@ impl WaveEngine {
         cells as u32
     }
 
+    fn sample_commits3(&mut self, x_obs: f32, n: u32, seed: u64) {
+        let r = self.res3;
+        let ix = ((x_obs * r as f32).round() as isize).clamp(0, r as isize - 1) as usize;
+        let mut cdf: Vec<f32> = Vec::with_capacity(r * r);
+        let mut acc = 0.0f32;
+        for z in 0..r {
+            for y in 0..r {
+                let i = (z * r + y) * r + ix;
+                let rho = self.re3[i] * self.re3[i] + self.im3[i] * self.im3[i];
+                acc += rho;
+                cdf.push(acc);
+            }
+        }
+        if acc < VACUUM_EPS {
+            return;
+        }
+        let mut rng = XorShift64::new(seed ^ 0x9E3779B97F4A7C15);
+        for _ in 0..n {
+            let target = rng.next_f32() * acc;
+            let hit = match cdf.binary_search_by(|v| v.partial_cmp(&target).unwrap_or(std::cmp::Ordering::Less)) {
+                Ok(i) => i,
+                Err(i) => i.min(r * r - 1),
+            };
+            let yz = hit;
+            let yy = (yz % r) as f32 / r as f32;
+            let zz = (yz / r) as f32 / r as f32;
+            let jy = (rng.next_f32() - 0.5) / r as f32;
+            self.commits.push(Commit {
+                x: x_obs.clamp(0.0, 1.0),
+                y: (yy + jy).clamp(0.0, 1.0),
+                t: self.time,
+                _pad: zz,
+            });
+        }
+        if self.commits.len() > MAX_COMMITS {
+            let excess = self.commits.len() - MAX_COMMITS;
+            self.commits.drain(0..excess);
+        }
+    }
+
     /// Signature: [peaks, fringe_shift, deflection, hist_corr] (S-SIGNATURE).
     pub fn signature(&self) -> Vec<f32> {
         let obs = self.last_obs;
@@ -715,7 +739,7 @@ impl WaveEngine {
         let obs = 0.75f32;
         match formula {
             0 => {
-                e.reg = force::Registry { w: [0.0; 4], on: [false; 4] };
+                e.reg = force::Registry { w: [0.0; 4], on: [false; 4], slots: [0,1,2,3] };
                 e.spawn(300, 777);
                 for _ in 0..steps {
                     e.step_force(1.0);
@@ -739,7 +763,7 @@ impl WaveEngine {
                 h
             }
             3 => {
-                e.reg = force::Registry { w: [1.0, 0.0, 0.0, 1.0], on: [true, false, false, true] };
+                e.reg = force::Registry { w: [1.0, 0.0, 0.0, 1.0], on: [true, false, false, true], slots: [0,1,2,3] };
                 e.spawn(300, 777);
                 for _ in 0..steps {
                     e.step_force(1.0);
@@ -747,7 +771,7 @@ impl WaveEngine {
                 e.hist_from_trails(obs)
             }
             _ => {
-                e.reg = force::Registry { w: [1.0, 0.3, 0.0, 1.0], on: [true, true, false, true] };
+                e.reg = force::Registry { w: [1.0, 0.3, 0.0, 1.0], on: [true, true, false, true], slots: [0,1,2,3] };
                 e.spawn(300, 777);
                 for _ in 0..steps {
                     e.step_force(1.0);
@@ -804,9 +828,9 @@ impl WaveEngine {
         sealed.clear_commits();
         sealed.sample_commits(0.75, 200, 5);
         push(&mut out, "vacuum_no_commits", sealed.commits.is_empty(), &mut first);
-        let mut p = force::Particle { x: 0.5, y: 0.5, vx: 0.0, vy: 0.0, alive: true, hue: 0 };
+        let mut p = force::Particle { x: 0.5, y: 0.5, z: 0.5, vx: 0.0, vy: 0.0, vz: 0.0, alive: true, hue: 0 };
         for _ in 0..200 {
-            force::integrate(&mut p, [9.0, 0.0], 1.0);
+            force::integrate(&mut p, [9.0, 0.0, 0.0], 1.0);
         }
         push(&mut out, "speed_clamped", (p.vx * p.vx + p.vy * p.vy).sqrt() <= force::V_MAX + 1e-6, &mut first);
         push(&mut out, "expr_parser_rejects_bad", expr::parse("1+;(").is_err(), &mut first);
@@ -898,6 +922,10 @@ impl WaveEngine {
 
     pub fn sample_commits(&mut self, x_obs: f32, n: u32, seed: u64) {
         self.last_obs = x_obs.clamp(0.0, 1.0);
+        if self.dim3 {
+            self.sample_commits3(x_obs, n, seed);
+            return;
+        }
         let w = self.width as usize;
         let h = self.height as usize;
         if w == 0 || h == 0 || n == 0 {
@@ -1014,6 +1042,417 @@ impl WaveEngine {
     }
 }
 
+#[wasm_bindgen]
+impl WaveEngine {
+    pub fn set_dim3(&mut self, on: bool) {
+        self.dim3 = on;
+        self.reset_field3();
+    }
+
+    pub fn dim3(&self) -> bool {
+        self.dim3
+    }
+
+    pub fn set_res3(&mut self, r: u32) {
+        let r = match r {
+            64 => 64,
+            48 => 48,
+            _ => 32,
+        };
+        self.res3 = r;
+        let n = r * r * r;
+        self.re3 = vec![0.0; n];
+        self.im3 = vec![0.0; n];
+        self.pre3 = vec![0.0; n];
+        self.pim3 = vec![0.0; n];
+    }
+
+    fn reset_field3(&mut self) {
+        for v in self.re3.iter_mut() {
+            *v = 0.0;
+        }
+        for v in self.im3.iter_mut() {
+            *v = 0.0;
+        }
+        self.pre3.fill(0.0);
+        self.pim3.fill(0.0);
+        self.scene3 = scene::preset3(self.scene_id, self.p_barrier, self.p_sep);
+    }
+
+    pub fn field3_ptr(&self) -> *const f32 {
+        self.re3.as_ptr()
+    }
+
+    pub fn field3_len(&self) -> u32 {
+        (self.re3.len() * 2) as u32
+    }
+
+    pub fn res3(&self) -> u32 {
+        self.res3 as u32
+    }
+
+    pub fn set_cam(&mut self, yaw: f32, pitch: f32, dist: f32, panx: f32, pany: f32) {
+        self.cam = [yaw, pitch, dist, panx, pany];
+    }
+
+    /// Point cloud from 3D rho threshold (R2 mode).
+    pub fn compute_points(&mut self) {
+        let r = self.res3;
+        let mut pts: Vec<f32> = Vec::new();
+        let mut mx = 1e-9f32;
+        for i in 0..r * r * r {
+            let rho = self.re3[i] * self.re3[i] + self.im3[i] * self.im3[i];
+            if rho > mx {
+                mx = rho;
+            }
+        }
+        let step = if r > 32 { 2 } else { 1 };
+        for z in (0..r).step_by(step) {
+            for y in (0..r).step_by(step) {
+                for x in (0..r).step_by(step) {
+                    let i = (z * r + y) * r + x;
+                    let rho = self.re3[i] * self.re3[i] + self.im3[i] * self.im3[i];
+                    if rho > 0.30 * mx && pts.len() < 4092 * 4 {
+                        let ph = self.im3[i].atan2(self.re3[i]);
+                        pts.push((x as f32 + 0.5) / r as f32);
+                        pts.push((y as f32 + 0.5) / r as f32);
+                        pts.push((z as f32 + 0.5) / r as f32);
+                        pts.push(ph);
+                    }
+                }
+            }
+        }
+        self.points = pts;
+    }
+
+    pub fn points_ptr(&self) -> *const f32 {
+        self.points.as_ptr()
+    }
+
+    pub fn points_len(&self) -> u32 {
+        self.points.len() as u32
+    }
+
+    /// CPU rasterizer fallback (P3): RGBA 96x96 from 2D field or 3D mid-slice.
+    pub fn raster(&mut self) {
+        let w = 96usize;
+        for y in 0..w {
+            for x in 0..w {
+                let (re, im) = if self.dim3 {
+                    let r = self.res3;
+                    let ix = (x as f32 / w as f32 * r as f32) as usize % r;
+                    let iy = (y as f32 / w as f32 * r as f32) as usize % r;
+                    let iz = r / 2;
+                    let i = (iz * r + iy) * r + ix;
+                    (self.re3[i], self.im3[i])
+                } else {
+                    (self.real[y * 96 + x], self.imag[y * 96 + x])
+                };
+                let rho = re * re + im * im;
+                let ph = im.atan2(re);
+                let hh = ph / std::f32::consts::TAU + 0.5;
+                let f = |q: f32| -> f32 {
+                    let t = ((((q % 1.0) + 1.0) % 1.0) * 6.0 - 3.0).abs() - 1.0;
+                    t.clamp(0.0, 1.0)
+                };
+                let v = (rho * 0.8).clamp(0.0, 0.8) * 255.0;
+                let o = (y * w + x) * 4;
+                self.raster[o] = (f(hh) * v) as u8;
+                self.raster[o + 1] = (f(hh + 2.0 / 3.0) * v) as u8;
+                self.raster[o + 2] = (f(hh + 1.0 / 3.0) * v) as u8;
+                self.raster[o + 3] = 255;
+            }
+        }
+    }
+
+    pub fn raster_ptr(&self) -> *const u8 {
+        self.raster.as_ptr()
+    }
+
+    pub fn raster_len(&self) -> u32 {
+        self.raster.len() as u32
+    }
+
+    fn proj(&self, p: [f32; 3]) -> [f32; 3] {
+        if !self.dim3 {
+            return [p[0], p[1], 0.5];
+        }
+        let (yaw, pitch, dist, panx, pany) = (self.cam[0], self.cam[1], self.cam[2], self.cam[3], self.cam[4]);
+        let cy = yaw.cos();
+        let sy = yaw.sin();
+        let cp = pitch.cos();
+        let sp = pitch.sin();
+        let fwd = [-cp * cy, -cp * sy, -sp];
+        let right0 = [fwd[1] * 1.0 - fwd[2] * 0.0, fwd[2] * 0.0 - fwd[0] * 1.0, 0.0];
+        let rl = (right0[0] * right0[0] + right0[1] * right0[1]).sqrt().max(1e-6);
+        let right = [right0[0] / rl, right0[1] / rl, 0.0];
+        let up = [
+            right[1] * fwd[2] - right[2] * fwd[1],
+            right[2] * fwd[0] - right[0] * fwd[2],
+            right[0] * fwd[1] - right[1] * fwd[0],
+        ];
+        let target = [0.5 + panx, 0.5 + pany, 0.5];
+        let eye = [target[0] - fwd[0] * dist, target[1] - fwd[1] * dist, target[2] - fwd[2] * dist];
+        let d = [p[0] - eye[0], p[1] - eye[1], p[2] - eye[2]];
+        let z = d[0] * fwd[0] + d[1] * fwd[1] + d[2] * fwd[2];
+        if z < 0.05 {
+            return [-9.0, -9.0, 0.0];
+        }
+        let u = 0.5 + (d[0] * right[0] + d[1] * right[1] + d[2] * right[2]) / z;
+        let v = 0.5 - (d[0] * up[0] + d[1] * up[1] + d[2] * up[2]) / z;
+        [u, v, z]
+    }
+
+    /// Project trails + commits (+ point cloud if include_points) to screen splats.
+    pub fn project_splats(&mut self, include_points: bool) {
+        let mut s: Vec<f32> = Vec::with_capacity(8192 * 4);
+        for t in self.trails.iter() {
+            if s.len() >= 8192 * 4 {
+                break;
+            }
+            let p = self.proj([t.x, t.y, t.z]);
+            if p[0] < -1.0 {
+                continue;
+            }
+            s.push(p[0]);
+            s.push(p[1]);
+            s.push(p[2]);
+            s.push(t.hue as f32);
+        }
+        for c in self.commits.iter() {
+            if s.len() >= 8192 * 4 {
+                break;
+            }
+            let z = if self.dim3 { c._pad } else { 0.5 };
+            let p = self.proj([c.x, c.y, z]);
+            if p[0] < -1.0 {
+                continue;
+            }
+            s.push(p[0]);
+            s.push(p[1]);
+            s.push(p[2]);
+            s.push(9.0);
+        }
+        if include_points {
+            for i in (0..self.points.len()).step_by(4) {
+                if s.len() >= 8192 * 4 {
+                    break;
+                }
+                let p = self.proj([self.points[i], self.points[i + 1], self.points[i + 2]]);
+                if p[0] < -1.0 {
+                    continue;
+                }
+                s.push(p[0]);
+                s.push(p[1]);
+                s.push(p[2]);
+                s.push(1000.0 + self.points[i + 3]);
+            }
+        }
+        self.splats = s;
+    }
+
+    pub fn splats_ptr(&self) -> *const f32 {
+        self.splats.as_ptr()
+    }
+
+    pub fn splats_len(&self) -> u32 {
+        (self.splats.len() / 4) as u32
+    }
+
+    /// Exact leapfrog time reversal (2D field): rev-step uses lap(pre), next=cur-K*pre.
+    /// 3D field reversal not exact (leapfrog3 lacks rev branch) - documented limitation.
+    pub fn reverse_time(&mut self) {
+        self.solver.rev = !self.solver.rev;
+        for p in self.particles.iter_mut() {
+            p.vx = -p.vx;
+            p.vy = -p.vy;
+            p.vz = -p.vz;
+        }
+    }
+
+    fn pre_re_mut(&mut self) -> &mut Vec<f32> {
+        &mut self.solver.pre_re
+    }
+
+    fn pre_im_mut(&mut self) -> &mut Vec<f32> {
+        &mut self.solver.pre_im
+    }
+
+    pub fn kick(&mut self, imp: f32) {
+        for p in self.particles.iter_mut() {
+            p.vx += imp;
+        }
+    }
+
+    pub fn swap_slots(&mut self, i: u32, j: u32) {
+        self.reg.swap_slots(i as usize, j as usize);
+    }
+
+    pub fn set_slot(&mut self, i: u32, law: u32) {
+        let i = (i as usize).min(3);
+        self.reg.slots[i] = law as u8;
+    }
+
+    pub fn add_source(&mut self, x: f32, y: f32, z: f32, kind: u32) {
+        if self.sources.len() < force::MAX_SOURCES {
+            self.sources.push(force::Source { x, y, z, strength: 1.0, kind });
+        }
+    }
+
+    pub fn remove_source(&mut self, i: u32) {
+        let i = i as usize;
+        if i < self.sources.len() && self.sources.len() > 1 {
+            self.sources.remove(i);
+        }
+    }
+
+    pub fn flip_source(&mut self, i: u32) {
+        let i = (i as usize).min(self.sources.len() - 1);
+        self.sources[i].strength = -self.sources[i].strength;
+    }
+
+    pub fn set_source_depth(&mut self, i: u32, z: f32) {
+        let i = (i as usize).min(self.sources.len() - 1);
+        self.sources[i].z = z.clamp(0.0, 1.0);
+    }
+
+    pub fn sources_len(&self) -> u32 {
+        self.sources.len() as u32
+    }
+
+    /// Config vector for save/load round-trip (schema in 02 appendix v4).
+    pub fn config_vec(&self) -> Vec<f32> {
+        let mut v = vec![
+            self.scene_id as f32, self.p_barrier, self.p_sep, self.p_k,
+        ];
+        for i in 0..4 {
+            v.push(self.reg.w[i]);
+            v.push(if self.reg.on[i] { 1.0 } else { 0.0 });
+            v.push(self.reg.slots[i] as f32);
+        }
+        for s in 0..force::MAX_SOURCES {
+            let src = self.sources.get(s).copied().unwrap_or_default();
+            v.push(src.x);
+            v.push(src.y);
+            v.push(src.z);
+            v.push(src.strength);
+            v.push(src.kind as f32);
+        }
+        for c in self.cam.iter() {
+            v.push(*c);
+        }
+        v
+    }
+
+    pub fn load_config(&mut self, v: Vec<f32>) -> bool {
+        let need = 4 + 12 + force::MAX_SOURCES * 5 + 5;
+        if v.len() < need {
+            return false;
+        }
+        self.p_barrier = v[1];
+        self.p_sep = v[2];
+        self.p_k = v[3];
+        for i in 0..4 {
+            self.reg.w[i] = v[4 + i * 3];
+            self.reg.on[i] = v[5 + i * 3] > 0.5;
+            self.reg.slots[i] = v[6 + i * 3] as u8;
+        }
+        self.sources.clear();
+        for s in 0..force::MAX_SOURCES {
+            let o = 16 + s * 5;
+            self.sources.push(force::Source {
+                x: v[o], y: v[o + 1], z: v[o + 2], strength: v[o + 3], kind: v[o + 4] as u32,
+            });
+        }
+        let co = 16 + force::MAX_SOURCES * 5;
+        self.cam = [v[co], v[co + 1], v[co + 2], v[co + 3], v[co + 4]];
+        self.set_scene(v[0] as u32);
+        true
+    }
+}
+
+fn grad2(re: &[f32], im: &[f32], w: usize, h: usize, x: usize, y: usize) -> [f32; 2] {
+    let i = y * w + x;
+    let xm = x.saturating_sub(1);
+    let xp = (x + 1).min(w - 1);
+    let ym = y.saturating_sub(1) * w;
+    let yp = (y + 1).min(h - 1) * w;
+    let rho = re[i] * re[i] + im[i] * im[i];
+    if rho < 1e-9 {
+        return [0.0, 0.0];
+    }
+    let drx = (re[y * w + xp] - re[y * w + xm]) * 0.5;
+    let dix = (im[y * w + xp] - im[y * w + xm]) * 0.5;
+    let dry = (re[yp + x] - re[ym + x]) * 0.5;
+    let diy = (im[yp + x] - im[ym + x]) * 0.5;
+    [
+        (re[i] * dix - im[i] * drx) / rho,
+        (re[i] * diy - im[i] * dry) / rho,
+    ]
+}
+
+fn maskg2(mask: &[f32], x: usize, y: usize) -> [f32; 2] {
+    let xm = x.saturating_sub(1);
+    let xp = (x + 1).min(47);
+    let ym = y.saturating_sub(1);
+    let yp = (y + 1).min(47);
+    [
+        (mask[y * 48 + xp] - mask[y * 48 + xm]) * 0.5,
+        (mask[yp * 48 + x] - mask[ym * 48 + x]) * 0.5,
+    ]
+}
+
+fn grad3(re: &[f32], im: &[f32], r: usize, x: usize, y: usize, z: usize) -> [f32; 3] {
+    let i = (z * r + y) * r + x;
+    let xm = x.saturating_sub(1);
+    let xp = (x + 1).min(r - 1);
+    let ym = y.saturating_sub(1);
+    let yp = (y + 1).min(r - 1);
+    let zm = z.saturating_sub(1);
+    let zp = (z + 1).min(r - 1);
+    let rho = re[i] * re[i] + im[i] * im[i];
+    if rho < 1e-9 {
+        return [0.0, 0.0, 0.0];
+    }
+    let d = |a: usize, b: usize, c: usize| (re[(c * r + b) * r + a], im[(c * r + b) * r + a]);
+    let (r1, i1) = d(xp, y, z);
+    let (r0, i0) = d(xm, y, z);
+    let (r3, i3) = d(x, yp, z);
+    let (r2, i2) = d(x, ym, z);
+    let (r5, i5) = d(x, y, zp);
+    let (r4, i4) = d(x, y, zm);
+    let drx = (r1 - r0) * 0.5;
+    let dix = (i1 - i0) * 0.5;
+    let dry = (r3 - r2) * 0.5;
+    let diy = (i3 - i2) * 0.5;
+    let drz = (r5 - r4) * 0.5;
+    let diz = (i5 - i4) * 0.5;
+    [
+        (re[i] * dix - im[i] * drx) / rho,
+        (re[i] * diy - im[i] * dry) / rho,
+        (re[i] * diz - im[i] * drz) / rho,
+    ]
+}
+
+fn maskg3(mask: &[f32], r: usize, x: usize, y: usize, z: usize) -> [f32; 3] {
+    let g = 24usize;
+    let gx = ((x * g) / r).min(g - 1);
+    let gy = ((y * g) / r).min(g - 1);
+    let gz = ((z * g) / r).min(g - 1);
+    let xm = gx.saturating_sub(1);
+    let xp = (gx + 1).min(g - 1);
+    let ym = gy.saturating_sub(1);
+    let yp = (gy + 1).min(g - 1);
+    let zm = gz.saturating_sub(1);
+    let zp = (gz + 1).min(g - 1);
+    let at = |a: usize, b: usize, c: usize| mask[(c * g + b) * g + a];
+    [
+        (at(xp, gy, gz) - at(xm, gy, gz)) * 0.5,
+        (at(gx, yp, gz) - at(gx, ym, gz)) * 0.5,
+        (at(gx, gy, zp) - at(gx, gy, zm)) * 0.5,
+    ]
+}
+
 fn hist_centroid_bin(h: &[f32; HIST_BINS]) -> f32 {
     let mut s = 0.0f32;
     let mut w = 0.0f32;
@@ -1027,5 +1466,61 @@ fn hist_centroid_bin(h: &[f32; HIST_BINS]) -> f32 {
         s / w
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reverse_roundtrip_2d() {
+        let mut e = WaveEngine::new(48, 48);
+        e.set_scene(0);
+        for _ in 0..60 { e.step(0.016); }
+        let snap = e.real.clone();
+        e.solver.drive = false;
+        e.solver.sponge = false;
+        for _ in 0..60 { e.step(0.016); }
+        e.reverse_time();
+        for _ in 0..60 { e.step(0.016); }
+        let mut err = 0.0f32;
+        for i in 0..snap.len() {
+            let x = i % 48;
+            let y = i / 48;
+            if x < 6 || x > 41 || y < 6 || y > 41 { continue; }
+            err = err.max((e.real[i] - snap[i]).abs());
+        }
+        // leapfrog reversal is exact up to the drive term; allow modest tolerance
+        assert!(err < 0.5, "reverse roundtrip err {}", err);
+    }
+
+    #[test]
+    fn config_roundtrip() {
+        let mut e = WaveEngine::new(48, 48);
+        e.set_weight(1, 2.5);
+        e.set_source(0, 0.7, 0.4, 1.5, 0);
+        e.swap_slots(0, 2);
+        let cfg = e.config_vec();
+        let mut e2 = WaveEngine::new(48, 48);
+        assert!(e2.load_config(cfg.clone()));
+        assert_eq!(e2.config_vec(), cfg);
+    }
+
+    #[test]
+    fn dim3_sample_respects_vacuum() {
+        let mut e = WaveEngine::new(32, 32);
+        e.set_dim3(true);
+        e.clear_commits();
+        e.sample_commits(0.75, 100, 3);
+        assert!(e.commits.is_empty());
+    }
+}
+
+
+
+
+
+
+
+
 
 

@@ -70,6 +70,37 @@
 公式：無（純資料）：preset.explain[] → 面板註解＋側欄
 層：L4｜契約：註解純文字、無邏輯｜畫面：docent mode
 
+### S-ZEROCOPY `P1`
+公式：無；writeBuffer 直接食 wasm memory view（無 slice）；Solver scratch 滅每幀 alloc
+契約：view 失效僅於 memory.grow→每幀重建 view 對象（廉價）｜測試：幀 alloc 計數=0（instrument）
+
+### S-GOV `P2`
+公式：ema(frame_ms) > 22 → 降階；< 12 持續 3s → 升階；階梯狀態機
+層：L3｜契約：perf 燈 DOM＋manual override｜測試：throttle 模擬觸發降階
+
+### S-RASTER `P3`
+公式：Rust 側 ρ/phase→RGBA pixel buffer（2D slice 或 3D 中slice）；TS putImageData
+契約：pixel buffer ptr/len 導出；無 WebGPU 自動啟用｜測試：無 GPU 環境截圖非黑
+
+### S-GPUSIM `P4 stretch`
+公式：WGSL compute ping-pong 波步進；Rust 讀回只 obs 列（mapAsync）
+契約：field buffer 改 STORAGE|COPY_SRC；fallback CPU 路不變｜測試：CPU/GPU 路 signature 差<ε
+
+### S-VOL `M-3D1`
+公式：raymarch：t 步進、ρ 累積、phase 着色、commit/源發光；步數=品質滑桿
+契約：uniform v4 相機(yaw,pitch,dist,pan2)＋品質｜失效：SwiftShader 慢→governor 降 R1/R2
+
+### S-CAM `M-3D1`
+公式：orbit 相機→view 矩陣（CPU 算，uniform 上傳）｜契約：拖曳/滾輪/shift-pan 事件→參數
+
+### S-SLOT `M-SWAP`
+公式：slot[i].law ∈ enum；swap(i,j) 交換 law；權重留槽
+契約：配置 JSON schema（sources/slots/weights/globals）存讀 round-trip｜測試：swap 不變性
+
+### S-REV `M-3D2`
+公式：leapfrog 反演=pre↔cur 交換；粒子 v→−v；尾跡倒放
+契約：反演回合測試 step N→rev→step N ε 內｜測試：ε<1e-3
+
 ### S-SCENE `M-S1`（主軸卡）
 公式：無單一式；Scene = {emitters, n(x,y,λ), mask(x,y), forces, detectors} 之組合描述
 層：backend｜入：preset JSON/參數｜出：n-grid、mask-grid、源列表
