@@ -1,4 +1,4 @@
-// wave_blend.wgsl â€” contract v4 (80B uniform, 12 bindings, 2 pipelines).
+// wave_blend.wgsl Ã¢â‚¬â€ contract v4 (80B uniform, 12 bindings, 2 pipelines).
 // flags bits: 1 dims, 2 duel, 4 arrows, 8 proj, 16 pol, 32 dim3, 64 R1slice, 128 R2points.
 
 struct ObsParams {
@@ -179,22 +179,22 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
         let px = uv.x * 4.0;
         let panel = u32(floor(px));
         let lx = fract(px);
-        let fi = clamp(u32(lx * 96.0), 0u, 95u);
-        let fj = clamp(u32(uv.y * 96.0), 0u, 95u);
-        let idx = fj * 96u + fi;
+        let fi = clamp(u32(lx * f32(params.field_w)), 0u, params.field_w - 1u);
+        let fj = clamp(u32(uv.y * f32(params.field_h)), 0u, params.field_h - 1u);
+        let idx = fj * params.field_w + fi;
         var col = vec3<f32>(0.0);
         if (panel == 0u) {
             let psi = sample_field(uv);
             col = phase_to_rgb(atan2(psi.y, psi.x), psi.x * psi.x + psi.y * psi.y);
-            let gm = proj_buf[27648u + idx];
+            let gm = proj_buf[3u * params.field_w * params.field_h + idx];
             col = mix(col, vec3<f32>(1.0, 0.15, 0.1), clamp(gm * 1.5, 0.0, 0.8));
         } else if (panel == 1u) {
             col = vec3<f32>(0.1, 0.7, 0.9) * pow(proj_buf[idx], 0.35);
         } else if (panel == 2u) {
-            let v = proj_buf[9216u + idx];
+            let v = proj_buf[params.field_w * params.field_h + idx];
             col = select(vec3<f32>(0.2, 0.4, 1.0) * -v, vec3<f32>(1.0, 0.5, 0.1) * v, v > 0.0);
         } else {
-            col = vec3<f32>(0.9, 0.9, 0.8) * pow(proj_buf[18432u + idx], 0.5);
+            col = vec3<f32>(0.9, 0.9, 0.8) * pow(proj_buf[2u * params.field_w * params.field_h + idx], 0.5);
         }
         col = col * select(1.0, 0.0, fract(px) < 0.008);
         return vec4<f32>(col, 1.0);
@@ -339,4 +339,5 @@ fn fs_splat(@location(0) local: vec2<f32>, @location(1) extra: f32) -> @location
     }
     return vec4<f32>(col * fall, fall * 0.8);
 }
+
 

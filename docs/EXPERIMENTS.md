@@ -1,56 +1,64 @@
-# 實驗紀錄（EXPERIMENTS）
+﻿# å¯¦é©—ç´€éŒ„ï¼ˆEXPERIMENTSï¼‰
 
-模板：日期／環境／公式／签名／現實對照／結論／截圖。
+æ¨¡æ¿ï¼šæ—¥æœŸï¼ç’°å¢ƒï¼å…¬å¼ï¼ç­¾åï¼ç¾å¯¦å°ç…§ï¼çµè«–ï¼æˆªåœ–ã€‚
 
-## E1 — 2026-10-11 雙縫干涉（scene5）
-公式：wave / born｜签名：peaks=5, hist_corr=0.87｜現實：Young 1801 條紋｜結論：PASS｜截圖：unity4.png
+## E1 â€” 2026-10-11 é›™ç¸«å¹²æ¶‰ï¼ˆscene5ï¼‰
+å…¬å¼ï¼šwave / bornï½œç­¾åï¼špeaks=5, hist_corr=0.87ï½œç¾å¯¦ï¼šYoung 1801 æ¢ç´‹ï½œçµè«–ï¼šPASSï½œæˆªåœ–ï¼šunity4.png
 
-## E2 — 2026-10-11 微粒說重演（scene5/1/3）
-公式：corpuscular（無力彈道＋mask 吸收）｜签名：peaks<3、無中凹｜現實：歷史否證｜結論：三關全 fail，重現 1801 年判決｜截圖：unity4.png
+## E2 â€” 2026-10-11 å¾®ç²’èªªé‡æ¼”ï¼ˆscene5/1/3ï¼‰
+å…¬å¼ï¼šcorpuscularï¼ˆç„¡åŠ›å½ˆé“ï¼‹mask å¸æ”¶ï¼‰ï½œç­¾åï¼špeaks<3ã€ç„¡ä¸­å‡¹ï½œç¾å¯¦ï¼šæ­·å²å¦è­‰ï½œçµè«–ï¼šä¸‰é—œå…¨ failï¼Œé‡ç¾ 1801 å¹´åˆ¤æ±ºï½œæˆªåœ–ï¼šunity4.png
 
-## E3 — 2026-10-11 導引律雙縫（開放項）
-公式：guidance（∇phase 速度 steering 0.2 blend）／hforce（guid+grav0.3+bnd）｜签名：peaks<3｜結論：FAIL——toy Bohm 缺量子勢項或 steering 未調好；**開放研究項**，唔銷毀紀錄｜截圖：unity4.png
+## E3 â€” 2026-10-11 å°Žå¼•å¾‹é›™ç¸«ï¼ˆé–‹æ”¾é …ï¼‰
+å…¬å¼ï¼šguidanceï¼ˆâˆ‡phase é€Ÿåº¦ steering 0.2 blendï¼‰ï¼hforceï¼ˆguid+grav0.3+bndï¼‰ï½œç­¾åï¼špeaks<3ï½œçµè«–ï¼šFAILâ€”â€”toy Bohm ç¼ºé‡å­å‹¢é …æˆ– steering æœªèª¿å¥½ï¼›**é–‹æ”¾ç ”ç©¶é …**ï¼Œå””éŠ·æ¯€ç´€éŒ„ï½œæˆªåœ–ï¼šunity4.png
 
-## E4 — 2026-10-11 棱鏡彎折（開放項）
-公式：wave/born @ n=2.2 傍軸 phase kick｜签名：centroid shift <0.02｜結論：FAIL——傍軸近似彎折太弱；需全 Helmholtz 或更厚楔｜開放項
+## E4 â€” 2026-10-11 æ£±é¡å½ŽæŠ˜ï¼ˆé–‹æ”¾é …ï¼‰
+å…¬å¼ï¼šwave/born @ n=2.2 å‚è»¸ phase kickï½œç­¾åï¼šcentroid shift <0.02ï½œçµè«–ï¼šFAILâ€”â€”å‚è»¸è¿‘ä¼¼å½ŽæŠ˜å¤ªå¼±ï¼›éœ€å…¨ Helmholtz æˆ–æ›´åŽšæ¥”ï½œé–‹æ”¾é …
 
-## E5 — 2026-10-11 維度階梯
-環境：D=1..4 同脈衝｜观察：D=2 面板尾跡模糊、D=3 面板波前鋭利｜現實：強 Huygens 只喺奇數維≥3｜結論：PASS（定性）｜截圖：all2.png
+## E5 â€” 2026-10-11 ç¶­åº¦éšŽæ¢¯
+ç’°å¢ƒï¼šD=1..4 åŒè„ˆè¡ï½œè§‚å¯Ÿï¼šD=2 é¢æ¿å°¾è·¡æ¨¡ç³Šã€D=3 é¢æ¿æ³¢å‰é‹­åˆ©ï½œç¾å¯¦ï¼šå¼· Huygens åªå–ºå¥‡æ•¸ç¶­â‰¥3ï½œçµè«–ï¼šPASSï¼ˆå®šæ€§ï¼‰ï½œæˆªåœ–ï¼šall2.png
 
-## E6 — 2026-10-11 密封牆隧穿
-環境：全封牆＋300 步｜观察：牆後 E>1e-6（吸收率 0.55/step 唔完美）｜結論：吸收牆=近似黑體，有數值隧穿；selftest 真空改以 t=0 未演化場定義｜紀錄保留
+## E6 â€” 2026-10-11 å¯†å°ç‰†éš§ç©¿
+ç’°å¢ƒï¼šå…¨å°ç‰†ï¼‹300 æ­¥ï½œè§‚å¯Ÿï¼šç‰†å¾Œ E>1e-6ï¼ˆå¸æ”¶çŽ‡ 0.55/step å””å®Œç¾Žï¼‰ï½œçµè«–ï¼šå¸æ”¶ç‰†=è¿‘ä¼¼é»‘é«”ï¼Œæœ‰æ•¸å€¼éš§ç©¿ï¼›selftest çœŸç©ºæ”¹ä»¥ t=0 æœªæ¼”åŒ–å ´å®šç¾©ï½œç´€éŒ„ä¿ç•™
 
-## E7 — 2026-10-11 透鏡焦散（scene11）
-環境：n=1.6 圓盤＋180 幾何 ray｜观察：介質壓縮格可見；ray 彎折包絡（焦散）偏淡｜結論：PASS（顯示）/POLISH（焦散對比）｜截圖：fix2.png
+## E7 â€” 2026-10-11 é€é¡ç„¦æ•£ï¼ˆscene11ï¼‰
+ç’°å¢ƒï¼šn=1.6 åœ“ç›¤ï¼‹180 å¹¾ä½• rayï½œè§‚å¯Ÿï¼šä»‹è³ªå£“ç¸®æ ¼å¯è¦‹ï¼›ray å½ŽæŠ˜åŒ…çµ¡ï¼ˆç„¦æ•£ï¼‰åæ·¡ï½œçµè«–ï¼šPASSï¼ˆé¡¯ç¤ºï¼‰/POLISHï¼ˆç„¦æ•£å°æ¯”ï¼‰ï½œæˆªåœ–ï¼šfix2.png
 
-## E8 — 2026-10-11 WebGPU storage limit 事件
-環境：binding 數達 9｜观察：fragment stage 預設 maxStorageBuffersPerShaderStage=8 → pipeline invalid → 全黑｜結論：requestDevice 須 requiredLimits=16；工程教訓：**buffer 數入契約審查清單**｜已修
+## E8 â€” 2026-10-11 WebGPU storage limit äº‹ä»¶
+ç’°å¢ƒï¼šbinding æ•¸é” 9ï½œè§‚å¯Ÿï¼šfragment stage é è¨­ maxStorageBuffersPerShaderStage=8 â†’ pipeline invalid â†’ å…¨é»‘ï½œçµè«–ï¼šrequestDevice é ˆ requiredLimits=16ï¼›å·¥ç¨‹æ•™è¨“ï¼š**buffer æ•¸å…¥å¥‘ç´„å¯©æŸ¥æ¸…å–®**ï½œå·²ä¿®
 
-## E9 — 2026-10-11 Bohm 全速度 steering 再試（E3 跟進）
-公式：guidance 全速度覆蓋（無其他力時 mixw=1）｜签名：unity scene5 guidance 仍 fail｜結論：toy Bohm 缺量子勢／相位渦旋處理，**維持開放**｜截圖：unity5.png
+## E9 â€” 2026-10-11 Bohm å…¨é€Ÿåº¦ steering å†è©¦ï¼ˆE3 è·Ÿé€²ï¼‰
+å…¬å¼ï¼šguidance å…¨é€Ÿåº¦è¦†è“‹ï¼ˆç„¡å…¶ä»–åŠ›æ™‚ mixw=1ï¼‰ï½œç­¾åï¼šunity scene5 guidance ä» failï½œçµè«–ï¼štoy Bohm ç¼ºé‡å­å‹¢ï¼ç›¸ä½æ¸¦æ—‹è™•ç†ï¼Œ**ç¶­æŒé–‹æ”¾**ï½œæˆªåœ–ï¼šunity5.png
 
-## E13 — 2026-10-12 邊界=吸收修正（M-SCI1）
-變更：unity 粒子跑 boundary 改 kill_in_mask（吸收），guidance 全強度｜结果：**guidance 轉 PASS double-slit**（wave/born/guidance 三表述統一）｜新敗績：guidance@shadow fail（Bohm 流填幾何影）、hforce 全敗（grav w=0.3 污染條紋＝矩陣作污染偵測器）｜截圖：k2.png
+## E13 â€” 2026-10-12 é‚Šç•Œ=å¸æ”¶ä¿®æ­£ï¼ˆM-SCI1ï¼‰
+è®Šæ›´ï¼šunity ç²’å­è·‘ boundary æ”¹ kill_in_maskï¼ˆå¸æ”¶ï¼‰ï¼Œguidance å…¨å¼·åº¦ï½œç»“æžœï¼š**guidance è½‰ PASS double-slit**ï¼ˆwave/born/guidance ä¸‰è¡¨è¿°çµ±ä¸€ï¼‰ï½œæ–°æ•—ç¸¾ï¼šguidance@shadow failï¼ˆBohm æµå¡«å¹¾ä½•å½±ï¼‰ã€hforce å…¨æ•—ï¼ˆgrav w=0.3 æ±¡æŸ“æ¢ç´‹ï¼çŸ©é™£ä½œæ±¡æŸ“åµæ¸¬å™¨ï¼‰ï½œæˆªåœ–ï¼šk2.png
 
-## E14 — 2026-10-12 maskg2 索引災難（工程）
-症狀：v4 batch 後 frame ~30 wasm trap（unreachable）｜因：net_force 重構時 maskg2 收 field-grid 索引（96/64）但 mask 係 48²｜修：映射 (i*48)/w＋clamp｜教訓：**多網格索引映射入契約審查**；host example unity_dbg 作回歸工具
+## E14 â€” 2026-10-12 maskg2 ç´¢å¼•ç½é›£ï¼ˆå·¥ç¨‹ï¼‰
+ç—‡ç‹€ï¼šv4 batch å¾Œ frame ~30 wasm trapï¼ˆunreachableï¼‰ï½œå› ï¼šnet_force é‡æ§‹æ™‚ maskg2 æ”¶ field-grid ç´¢å¼•ï¼ˆ96/64ï¼‰ä½† mask ä¿‚ 48Â²ï½œä¿®ï¼šæ˜ å°„ (i*48)/wï¼‹clampï½œæ•™è¨“ï¼š**å¤šç¶²æ ¼ç´¢å¼•æ˜ å°„å…¥å¥‘ç´„å¯©æŸ¥**ï¼›host example unity_dbg ä½œå›žæ­¸å·¥å…·
 
-## E15 — 2026-10-12 色散三通道（M-SCI2）
-環境：prism＋disp on（R/G/B n 乘 0.75/1/1.3）｜观察：楔區三色 beating＋出射分離；sig shift=-0.196（偏折可測）｜結論：色散 PASS（顯示）；clean rainbow fan 仍 pending（傍軸彎折弱,E4 延續）｜截圖：k3.png
+## E15 â€” 2026-10-12 è‰²æ•£ä¸‰é€šé“ï¼ˆM-SCI2ï¼‰
+ç’°å¢ƒï¼šprismï¼‹disp onï¼ˆR/G/B n ä¹˜ 0.75/1/1.3ï¼‰ï½œè§‚å¯Ÿï¼šæ¥”å€ä¸‰è‰² beatingï¼‹å‡ºå°„åˆ†é›¢ï¼›sig shift=-0.196ï¼ˆåæŠ˜å¯æ¸¬ï¼‰ï½œçµè«–ï¼šè‰²æ•£ PASSï¼ˆé¡¯ç¤ºï¼‰ï¼›clean rainbow fan ä» pendingï¼ˆå‚è»¸å½ŽæŠ˜å¼±,E4 å»¶çºŒï¼‰ï½œæˆªåœ–ï¼šk3.png
 
-## E16 — 2026-10-12 統一矩陣 v3（M-SCI1 修正後）
-配置：per-env obs（5→0.5, 1/3→0.8）、實驗源強度歸零、boundary=吸收｜结果：
-**wave/born 列三關全綠（標準 QM 統一）**；guidance/hforce：雙縫 P、shadow f、prism f；corp 全 f｜
-解讀：H programme 現狀＝雙縫統一、影與棱鏡未統一＝**精确嘅開放前沿**｜截圖：k2.png＋host unity_dbg
+## E16 â€” 2026-10-12 çµ±ä¸€çŸ©é™£ v3ï¼ˆM-SCI1 ä¿®æ­£å¾Œï¼‰
+é…ç½®ï¼šper-env obsï¼ˆ5â†’0.5, 1/3â†’0.8ï¼‰ã€å¯¦é©—æºå¼·åº¦æ­¸é›¶ã€boundary=å¸æ”¶ï½œç»“æžœï¼š
+**wave/born åˆ—ä¸‰é—œå…¨ç¶ ï¼ˆæ¨™æº– QM çµ±ä¸€ï¼‰**ï¼›guidance/hforceï¼šé›™ç¸« Pã€shadow fã€prism fï¼›corp å…¨ fï½œ
+è§£è®€ï¼šH programme ç¾ç‹€ï¼é›™ç¸«çµ±ä¸€ã€å½±èˆ‡æ£±é¡æœªçµ±ä¸€ï¼**ç²¾ç¡®å˜…é–‹æ”¾å‰æ²¿**ï½œæˆªåœ–ï¼šk2.pngï¼‹host unity_dbg
 
-## E17 — 2026-10-12 S-GLUE 首跑
-方法：stride-4 DFT 往返 mismatch｜观察：panel0 紅閃含大量混疊噪聲（stride 取樣誤差＞物理 obstruction）｜結論：機制 PASS、訊號未淨；改進＝full-step DFT 或 windowing｜開放｜截圖：m1.png
+## E17 â€” 2026-10-12 S-GLUE é¦–è·‘
+æ–¹æ³•ï¼šstride-4 DFT å¾€è¿” mismatchï½œè§‚å¯Ÿï¼španel0 ç´…é–ƒå«å¤§é‡æ··ç–Šå™ªè²ï¼ˆstride å–æ¨£èª¤å·®ï¼žç‰©ç† obstructionï¼‰ï½œçµè«–ï¼šæ©Ÿåˆ¶ PASSã€è¨Šè™Ÿæœªæ·¨ï¼›æ”¹é€²ï¼full-step DFT æˆ– windowingï½œé–‹æ”¾ï½œæˆªåœ–ï¼šm1.png
 
-## E10 — 2026-10-11 無 GPU fallback 驗證（P3）
-環境：?nogpu=1（Rust CPU 光柵化＋putImageData）｜观察：完整雙縫干涉畫面、commits 累積｜結論：PASS——最弱設備仍有全畫面｜截圖：g1.png
+## E10 â€” 2026-10-11 ç„¡ GPU fallback é©—è­‰ï¼ˆP3ï¼‰
+ç’°å¢ƒï¼š?nogpu=1ï¼ˆRust CPU å…‰æŸµåŒ–ï¼‹putImageDataï¼‰ï½œè§‚å¯Ÿï¼šå®Œæ•´é›™ç¸«å¹²æ¶‰ç•«é¢ã€commits ç´¯ç©ï½œçµè«–ï¼šPASSâ€”â€”æœ€å¼±è¨­å‚™ä»æœ‰å…¨ç•«é¢ï½œæˆªåœ–ï¼šg1.png
 
-## E11 — 2026-10-11 3D raymarch 首跑（M-3D）
-環境：dim3 + R0 auto｜观察：波前自左面進入、相機軌道可控；早期幀場未充滿｜結論：PASS（顯示）；焦散/點雲待 polish｜截圖：g3.png
+## E11 â€” 2026-10-11 3D raymarch é¦–è·‘ï¼ˆM-3Dï¼‰
+ç’°å¢ƒï¼šdim3 + R0 autoï½œè§‚å¯Ÿï¼šæ³¢å‰è‡ªå·¦é¢é€²å…¥ã€ç›¸æ©Ÿè»Œé“å¯æŽ§ï¼›æ—©æœŸå¹€å ´æœªå……æ»¿ï½œçµè«–ï¼šPASSï¼ˆé¡¯ç¤ºï¼‰ï¼›ç„¦æ•£/é»žé›²å¾… polishï½œæˆªåœ–ï¼šg3.png
 
-## E12 — 2026-10-11 反演回合（S-REV）
-環境：cargo test reverse_roundtrip_2d（閉箱、drive/sponge off）｜结果：err<1e-2 PASS｜結論：leapfrog 反演精確（rev 步用 lap(pre)、next=cur−K·pre）；**開箱（drive/sponge）不可逆＝物理誠實**｜紀錄
+## E12 â€” 2026-10-11 åæ¼”å›žåˆï¼ˆS-REVï¼‰
+ç’°å¢ƒï¼šcargo test reverse_roundtrip_2dï¼ˆé–‰ç®±ã€drive/sponge offï¼‰ï½œç»“æžœï¼šerr<1e-2 PASSï½œçµè«–ï¼šleapfrog åæ¼”ç²¾ç¢ºï¼ˆrev æ­¥ç”¨ lap(pre)ã€next=curâˆ’KÂ·preï¼‰ï¼›**é–‹ç®±ï¼ˆdrive/spongeï¼‰ä¸å¯é€†ï¼ç‰©ç†èª å¯¦**ï½œç´€éŒ„
+
+## E18 — 2026-10-12 guidance equivariance 修正
+變更：steering 改 v ∝ ∇S（cscale 歸一），唔再恆速｜结果：矩陣不變（guidance@shadow 仍 fail）｜
+解讀：敗因唔係恆速近似，而係 shadow 判據（mid<sides）與 Bohm 環狀結構唔匹配｜開放（判據 vs 物理需再辨）
+
+## E19 — 2026-10-12 128² ＋ separable full-step DFT glue
+變更：主場 96²→128²；glue 改 separable full-step DFT 往返｜观察：色散通道分離清晰（n1.png）；
+glue 紅閃噪聲大減但仍非零（數值往返誤差）｜結論：PASS（機制＋顯示）；obstruction 訊號提取待 windowing

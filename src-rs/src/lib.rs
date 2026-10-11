@@ -311,6 +311,18 @@ impl WaveEngine {
         let reg = self.reg;
         let cm = self.eff_custom();
         let prog = self.custom_prog.clone();
+        let mut gsum = 0.0f32;
+        let mut gc = 0u32;
+        if reg.on[0] {
+            for sy in (0..h).step_by(8) {
+                for sx in (0..w).step_by(8) {
+                    let g = grad2(&self.real, &self.imag, w, h, sx, sy);
+                    gsum += (g[0] * g[0] + g[1] * g[1]).sqrt() * 0.006;
+                    gc += 1;
+                }
+            }
+        }
+        let cscale = 0.004 / ((gsum / (gc as f32).max(1.0)) + 1e-9);
         for p in self.particles.iter_mut() {
             if !p.alive {
                 continue;
@@ -595,55 +607,93 @@ impl WaveEngine {
         }
     }
 
-    /// On-demand projections (S-PROJ-*): [0]=|FFT|2, [1]=Wigner slice, [2]=path/ray density.
+    /// On-demand projections (S-PROJ-* + S-GLUE): separable full-step DFT.
+    /// slots: [0]=|FFT|2, [1]=Wigner slice, [2]=path density, [3]=glue mismatch.
     pub fn compute_projs(&mut self) {
         let w = self.width as usize;
         let h = self.height as usize;
         let n = w * h;
-        let mut kproj = vec![0.0f32; n];
-        let mut kr: Vec<f32> = Vec::new();
-        let mut ki: Vec<f32> = Vec::new();
-        let step = 4usize;
-        let kw = w / step;
+        let tau = 6.2831853;
+        let mut tr = vec![0.0f32; n];
+        let mut ti = vec![0.0f32; n];
+        for y in 0..h {
+            for kx in 0..w {
+                let mut sr = 0.0f32;
+                let mut si = 0.0f32;
+                for x in 0..w {
+                    let ph = -tau * ((x * kx) as f32 / w as f32);
+                    let c = ph.cos();
+                    let s2 = ph.sin();
+                    sr += self.real[y * w + x] * c - self.imag[y * w + x] * s2;
+                    si += self.real[y * w + x] * s2 + self.imag[y * w + x] * c;
+                }
+                tr[y * w + kx] = sr;
+                ti[y * w + kx] = si;
+            }
+        }
+        let mut kr = vec![0.0f32; n];
+        let mut ki = vec![0.0f32; n];
         for ky in 0..h {
             for kx in 0..w {
                 let mut sr = 0.0f32;
                 let mut si = 0.0f32;
-                let mut y = 0;
-                while y < h {
-                    let mut x = 0;
-                    while x < w {
-                        let ph = -6.2831853 * ((x * kx) as f32 / w as f32 + (y * ky) as f32 / h as f32);
-                        sr += self.real[y * w + x] * ph.cos() - self.imag[y * w + x] * ph.sin();
-                        si += self.real[y * w + x] * ph.sin() + self.imag[y * w + x] * ph.cos();
-                        x += step;
-                    }
-                    y += step;
+                for y in 0..h {
+                    let ph = -tau * ((y * ky) as f32 / h as f32);
+                    let c = ph.cos();
+                    let s2 = ph.sin();
+                    sr += tr[y * w + kx] * c - ti[y * w + kx] * s2;
+                    si += tr[y * w + kx] * s2 + ti[y * w + kx] * c;
                 }
-                kr.push(sr);
-                ki.push(si);
-                kproj[ky * w + kx] = (sr * sr + si * si) / (step * step) as f32;
+                kr[ky * w + kx] = sr;
+                ki[ky * w + kx] = si;
             }
         }
-        // S-GLUE: inverse DFT round-trip; mismatch = obstruction / gluing failure hotspot.
+        let mut kproj = vec![0.0f32; n];
+        for i in 0..n {
+            kproj[i] = (kr[i] * kr[i] + ki[i] * ki[i]) / (n as f32 * n as f32);
+        }
+        let mut kmax = 1e-9f32;
+        for v in kproj.iter() {
+            if *v > kmax {
+                kmax = *v;
+            }
+        }
+        for v in kproj.iter_mut() {
+            *v /= kmax;
+        }
+        // inverse DFT (cols then rows, +sign, 1/N^2) -> reconstruction for glue test
+        let mut qr = vec![0.0f32; n];
+        let mut qi = vec![0.0f32; n];
+        for ky in 0..h {
+            for x in 0..w {
+                let mut sr = 0.0f32;
+                let mut si = 0.0f32;
+                for kx in 0..w {
+                    let ph = tau * ((x * kx) as f32 / w as f32);
+                    let c = ph.cos();
+                    let s2 = ph.sin();
+                    sr += kr[ky * w + kx] * c - ki[ky * w + kx] * s2;
+                    si += kr[ky * w + kx] * s2 + ki[ky * w + kx] * c;
+                }
+                qr[ky * w + x] = sr / w as f32;
+                qi[ky * w + x] = si / w as f32;
+            }
+        }
         let mut glue = vec![0.0f32; n];
         let mut gmax = 1e-9f32;
-        for y in (0..h).step_by(2) {
-            for x in (0..w).step_by(2) {
+        for y in 0..h {
+            for x in 0..w {
                 let mut ar = 0.0f32;
                 let mut ai = 0.0f32;
-                let mut ky = 0;
-                while ky < h {
-                    let mut kx = 0;
-                    while kx < w {
-                        let ph = 6.2831853 * ((x * kx) as f32 / w as f32 + (y * ky) as f32 / h as f32);
-                        let ik = (ky / step) * kw + (kx / step);
-                        ar += kr[ik] * ph.cos() - ki[ik] * ph.sin();
-                        ai += kr[ik] * ph.sin() + ki[ik] * ph.cos();
-                        kx += step;
-                    }
-                    ky += step;
+                for ky in 0..h {
+                    let ph = tau * ((y * ky) as f32 / h as f32);
+                    let c = ph.cos();
+                    let s2 = ph.sin();
+                    ar += qr[ky * w + x] * c - qi[ky * w + x] * s2;
+                    ai += qr[ky * w + x] * s2 + qi[ky * w + x] * c;
                 }
+                ar /= h as f32;
+                ai /= h as f32;
                 let dr = ar - self.real[y * w + x];
                 let di = ai - self.imag[y * w + x];
                 let m = (dr * dr + di * di).sqrt();
@@ -655,15 +705,6 @@ impl WaveEngine {
         }
         for v in glue.iter_mut() {
             *v /= gmax;
-        }
-        let mut kmax = 1e-9f32;
-        for v in kproj.iter() {
-            if *v > kmax {
-                kmax = *v;
-            }
-        }
-        for v in kproj.iter_mut() {
-            *v /= kmax;
         }
         let ix = (self.last_obs * w as f32) as usize;
         let mut wign = vec![0.0f32; n];
@@ -716,7 +757,6 @@ impl WaveEngine {
         self.projs.extend_from_slice(&path);
         self.projs.extend_from_slice(&glue);
     }
-
     pub fn projs_ptr(&self) -> *const f32 {
         self.projs.as_ptr()
     }
@@ -1249,7 +1289,7 @@ impl WaveEngine {
     /// CPU rasterizer fallback (P3/T3): RGBA 192x192 bilinear from 2D field or 3D mid-slice.
     pub fn raster(&mut self) {
         let w = 192usize;
-        let fw = 96.0f32;
+        let fw = self.width as f32;
         for y in 0..w {
             for x in 0..w {
                 let (re, im) = if self.dim3 {
@@ -1269,11 +1309,11 @@ impl WaveEngine {
                     let mut acc = (0.0, 0.0);
                     for dy in 0..2 {
                         for dx in 0..2 {
-                            let xx = (x0 + dx).clamp(0, 95) as usize;
-                            let yy = (y0 + dy).clamp(0, 95) as usize;
+                            let xx = (x0 + dx).clamp(0, self.width as isize - 1) as usize;
+                            let yy = (y0 + dy).clamp(0, self.height as isize - 1) as usize;
                             let wx = if dx == 0 { 1.0 - fx } else { fx };
                             let wy = if dy == 0 { 1.0 - fy } else { fy };
-                            let i = yy * 96 + xx;
+                            let i = yy * self.width as usize + xx;
                             acc.0 += self.real[i] * wx * wy;
                             acc.1 += self.imag[i] * wx * wy;
                         }
@@ -1678,6 +1718,9 @@ mod tests {
         assert!(f[0].abs() < 1e-4 && f[1].abs() < 1e-4);
     }
 }
+
+
+
 
 
 

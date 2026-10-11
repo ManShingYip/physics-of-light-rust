@@ -69,7 +69,7 @@ async function main(): Promise<void> {
   getEl('status').textContent = 'ready'
   getEl('result').textContent = add(2n, 2n).toString()
 
-  const engine = new WaveEngine(96, 96)
+  const engine = new WaveEngine(128, 128)
   const FW = Number(engine.width())
   const FH = Number(engine.height())
   let seed = 12345n
@@ -822,6 +822,7 @@ main().catch((e: unknown) => {
   console.error(e)
   document.getElementById('status')!.textContent = 'error'
 })
+
 
 
 
