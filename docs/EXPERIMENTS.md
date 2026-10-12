@@ -121,3 +121,18 @@ step_force 移除 steering（guid 槽改純 flux）｜结果：guidance@shadow �
 ## E33 — 2026-10-12 time-avg intensity（clean fan 達成）
 變更：ρ EMA（α=0.05）＋binding 11＋flag 1024 單色強度顯示｜观察：駐波條紋消失、楔後彎折光束平滑可見｜
 結論：PASS——clean fan 以強度語義達成（相位語義本質有駐波）｜截圖：t6.png｜selftest 12/12
+
+## E32 — 2026-10-12 discrete-flux Bohm advection（強攻十一）
+變更：v=J/ρ 由 leapfrog staggered 對 (ψn-1,ψn) 導出；嵌入每 wave_step；spawn 播種改 |ψ|² 播撒＋uniform 微粒源誠實分離｜
+结果：guidance 雙縫轉 PASS、shadow PASS；prism 仍 fail｜結論：equivariance 結構性修復成功大半｜
+開放：prism 彎曲波前下之 flux 積分精度
+
+## E33 — 2026-10-12 統一矩陣最終裁決（v4）
+| env \ formula | corpuscular | wave | born | guidance | hforce |
+|---|---|---|---|---|---|
+| doubleslit | f | P | P | P | P |
+| shadow | P | P | P | P | P |
+| prism | f | P | P | f | P |
+解讀：標準 QM 三關統一；Bohm 力學統一雙縫＋影、棱鏡未統一；微粒說只剩幾何影；
+hforce 通過＝引力污染判別語義保留（源強度 unity 歸零後等價 guidance）｜
+unity_dbg host 回歸工具固定此矩陣

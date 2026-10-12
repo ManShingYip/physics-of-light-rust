@@ -461,33 +461,42 @@ impl WaveEngine {
         let mut rng = XorShift64::new(seed);
         let w = self.width as usize;
         let h = self.height as usize;
-        // |psi|^2-born spawn (E23): sample y from incident-column density,
-        // so particle ensemble starts in quantum equilibrium (equivariance).
-        let ix = 2usize.min(w - 1);
-        let mut cdf = Vec::with_capacity(h);
-        let mut acc = 0.0f32;
-        for y in 0..h {
-            let i = y * w + ix;
-            acc += self.real[i] * self.real[i] + self.imag[i] * self.imag[i];
-            cdf.push(acc);
-        }
+        // |psi|^2-born spread spawn: x uniform, y from that column's CDF.
+        // Represents a steady stream in quantum equilibrium (equivariance).
         for _ in 0..n {
             if self.particles.len() >= 256 {
                 break;
             }
+            let xs = 0.02 + rng.next_f32() * 0.96;
+            let ix = ((xs * w as f32) as usize).min(w - 1);
+            let mut acc = 0.0f32;
+            let mut cdf = [0.0f32; 256];
+            let mut m = 0usize;
+            while m < h.min(256) {
+                let i = m * w + ix;
+                acc += self.real[i] * self.real[i] + self.imag[i] * self.imag[i];
+                cdf[m] = acc;
+                m += 1;
+            }
             let y = if acc > 1e-9 {
                 let target = rng.next_f32() * acc;
-                let yi = match cdf.binary_search_by(|v| v.partial_cmp(&target).unwrap_or(std::cmp::Ordering::Less)) {
-                    Ok(i) => i,
-                    Err(i) => i.min(h - 1),
-                };
-                yi as f32 / h as f32
+                let mut lo = 0usize;
+                let mut hi = m - 1;
+                while lo < hi {
+                    let mid = (lo + hi) / 2;
+                    if cdf[mid] < target {
+                        lo = mid + 1;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                lo as f32 / m as f32
             } else {
                 rng.next_f32()
             };
             let jy = (rng.next_f32() - 0.5) / h as f32;
             self.particles.push(force::Particle {
-                x: 0.02,
+                x: xs,
                 y: (y + jy).clamp(0.0, 1.0),
                 z: if self.dim3 { rng.next_f32() } else { 0.5 },
                 vx: 0.004,
@@ -526,6 +535,26 @@ impl WaveEngine {
             }
         }
         self.particles.retain(|p| p.alive);
+    }
+
+    /// Uniform source emission (corpuscular honesty): knows nothing of the field.
+    pub fn spawn_uniform(&mut self, n: u32, seed: u64) {
+        let mut rng = XorShift64::new(seed);
+        for _ in 0..n {
+            if self.particles.len() >= 256 {
+                break;
+            }
+            self.particles.push(force::Particle {
+                x: 0.02 + rng.next_f32() * 0.96,
+                y: rng.next_f32(),
+                z: 0.5,
+                vx: 0.004,
+                vy: 0.0,
+                vz: 0.0,
+                alive: true,
+                hue: 0,
+            });
+        }
     }
 
     fn hist_from_trails(&self, obs: f32) -> [f32; HIST_BINS] {
@@ -980,10 +1009,15 @@ impl WaveEngine {
         match formula {
             0 => {
                 e.reg = force::Registry { w: [0.0; 4], on: [false; 4], slots: [0,1,2,3] };
-                e.spawn(300, 777);
+                e.spawn_uniform(300, 777);
+                let mut s0 = 31337u64;
                 for _ in 0..steps {
                     e.step_force(1.0);
                     e.kill_in_mask();
+                    while e.particles_len() < 200 {
+                        e.spawn_uniform(20, s0);
+                        s0 += 1;
+                    }
                 }
                 e.hist_from_trails(obs)
             }
@@ -1003,18 +1037,30 @@ impl WaveEngine {
                 h
             }
             3 => {
-                e.reg = force::Registry { w: [1.0, 0.0, 0.0, 1.0], on: [true, false, false, true], slots: [0,1,2,3] };
+                e.reg = force::Registry { w: [1.0, 0.0, 0.0, 0.0], on: [true, false, false, false], slots: [0,1,2,3] };
                 e.spawn(300, 777);
+                let mut s2 = 918273u64;
                 for _ in 0..steps {
-                    e.step_force(1.0);
+                    e.step(0.016);
+                    e.kill_in_mask();
+                    while e.particles_len() < 200 {
+                        e.spawn(20, s2);
+                        s2 += 1;
+                    }
                 }
                 e.hist_from_trails(obs)
             }
             _ => {
-                e.reg = force::Registry { w: [1.0, 0.3, 0.0, 1.0], on: [true, true, false, true], slots: [0,1,2,3] };
+                e.reg = force::Registry { w: [1.0, 0.3, 0.0, 0.0], on: [true, true, false, false], slots: [0,1,2,3] };
                 e.spawn(300, 777);
+                let mut s3 = 5150u64;
                 for _ in 0..steps {
-                    e.step_force(1.0);
+                    e.step(0.016);
+                    e.kill_in_mask();
+                    while e.particles_len() < 200 {
+                        e.spawn(20, s3);
+                        s3 += 1;
+                    }
                 }
                 e.hist_from_trails(obs)
             }
@@ -1733,7 +1779,7 @@ fn flux_vel2(
         vy += b;
     }
     let sp = (vx * vx + vy * vy).sqrt();
-    if sp > 0.5 {
+    if sp > 1.5 {
         vx *= 0.5 / sp;
         vy *= 0.5 / sp;
     }

@@ -107,7 +107,7 @@ pub fn net_force(
                     let dx = s.x - pos[0];
                     let dy = s.y - pos[1];
                     let dz = s.z - pos[2];
-                    let d2 = dx * dx + dy * dy + dz * dz + 1e-4;
+                    let d2 = dx * dx + dy * dy + dz * dz + 4e-3;
                     let inv = 1.0 / (d2 * d2.sqrt());
                     let sign = if reg.slots[slot] == LAW_GRAV { 1.0 } else { -s.strength.signum() };
                     let g = 0.0015 * s.strength.abs() * sign * inv;
@@ -133,7 +133,7 @@ pub fn net_force(
                     let dx = pos[0] - s.x;
                     let dy = pos[1] - s.y;
                     let dz = pos[2] - s.z;
-                    let d2 = dx * dx + dy * dy + dz * dz + 1e-4;
+                    let d2 = dx * dx + dy * dy + dz * dz + 4e-3;
                     if d2 < cd {
                         cd = d2;
                         c = [dx, dy, dz];
@@ -149,7 +149,7 @@ pub fn net_force(
                     let dx = pos[0] - s.x;
                     let dy = pos[1] - s.y;
                     let dz = pos[2] - s.z;
-                    let d2 = dx * dx + dy * dy + dz * dz + 1e-4;
+                    let d2 = dx * dx + dy * dy + dz * dz + 4e-3;
                     if d2 < cd {
                         cd = d2;
                         c = [dx, dy, dz];
@@ -252,5 +252,6 @@ mod tests {
         assert!(sp <= V_MAX + 1e-6);
     }
 }
+
 
 

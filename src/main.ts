@@ -642,7 +642,7 @@ async function main(): Promise<void> {
   const runUnity = (): void => {
     el.unityBox.textContent = 'running batch (sync)...'
     window.setTimeout(() => {
-      const json = engine.run_unity(240) as unknown as string
+      const json = engine.run_unity(1200) as unknown as string
       const rows = JSON.parse(json) as { env: number; cells: { f: string; pass: boolean }[] }[]
       const names = ['corpuscular', 'wave', 'born', 'guidance', 'hforce']
       let html = '<table style="color:#ddd;font-size:11px"><tr><td>env\\f</td>'
@@ -857,6 +857,7 @@ main().catch((e: unknown) => {
   console.error(e)
   document.getElementById('status')!.textContent = 'error'
 })
+
 
 
 

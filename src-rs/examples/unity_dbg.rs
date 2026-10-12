@@ -1,22 +1,18 @@
 ﻿fn main() {
     let e = wave_engine::WaveEngine::new(96, 96);
-    let j = e.run_unity(240);
-    let mut env = '?';
-    let mut line = String::new();
-    for (i, chunk) in j.split("{\"f\":\"").enumerate() {
-        if let Some(p) = chunk.find("\"env\":") {
-            env = chunk[p + 6..p + 7].chars().next().unwrap_or('?');
-            if i > 0 {
-                println!("{}", line);
-            }
-            line = format!("env {}: ", env);
+    let j = e.run_unity(1200);
+    let mut buf = String::from("[");
+    buf.push_str(&j);
+    buf.push(']');
+    let rows: Vec<&str> = buf.split("{\"env\":").skip(1).collect();
+    for r in rows {
+        let env = r.split(|c: char| !c.is_ascii_digit()).next().unwrap_or("?");
+        print!("env {}: ", env);
+        for cell in r.split("{\"f\":\"").skip(1) {
+            let name = cell.split('"').next().unwrap_or("?");
+            let pass = cell.split("\"pass\":").nth(1).map(|s| s.starts_with("true")).unwrap_or(false);
+            print!("{}={} ", name, if pass { 'P' } else { 'f' });
         }
-        if i == 0 {
-            continue;
-        }
-        let name = chunk.split('"').next().unwrap_or("?");
-        let pass = chunk.contains("\"pass\":true");
-        line.push_str(&format!("{}={} ", name, if pass { 'P' } else { 'f' }));
+        println!();
     }
-    println!("{}", line);
 }
